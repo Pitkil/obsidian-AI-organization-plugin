@@ -1,0 +1,1 @@
+# obsidian-AI-organization-plugin
