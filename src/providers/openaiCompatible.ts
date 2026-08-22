@@ -2,9 +2,10 @@ import type { ChatContent, ChatMessage, ChatOptions, ModelProvider, ProviderId }
 import {
   AIRequestError,
   buildHeaders,
+  errorMessage,
+  postJson,
   parseNonStreamJson,
-  readErrorBody,
-  streamLines,
+  readErrorText,
 } from "./http";
 
 // ============================================================
@@ -48,47 +49,31 @@ export class OpenAICompatibleProvider implements ModelProvider {
       max_tokens: options.maxTokens ?? c.maxTokens,
     };
 
-    // 流式
     if (options.onStream) {
-      body.stream = true;
-      const res = await this.fetch(`${baseUrl}/chat/completions`, body, apiKey, options);
-      if (!res.ok) {
-        throw new AIRequestError(await readErrorBody(res), res.status);
-      }
-      let full = "";
-      await streamLines(res, (delta) => {
-        full += delta;
-        options.onStream?.(delta);
-      }, options.signal);
-      return full;
+      const res = await this.post(`${baseUrl}/chat/completions`, body, apiKey);
+      if (!res.ok) throw new AIRequestError(readErrorText(res), res.status);
+      const text = parseNonStreamJson(res.json);
+      options.onStream(text);
+      return text;
     }
 
-    // 非流式
-    const res = await this.fetch(`${baseUrl}/chat/completions`, body, apiKey, options);
+    const res = await this.post(`${baseUrl}/chat/completions`, body, apiKey);
     if (!res.ok) {
-      throw new AIRequestError(await readErrorBody(res), res.status);
+      throw new AIRequestError(readErrorText(res), res.status);
     }
-    const json = await res.json();
-    return parseNonStreamJson(json);
+    return parseNonStreamJson(res.json);
   }
 
-  private async fetch(
+  private async post(
     url: string,
     body: Record<string, unknown>,
-    apiKey: string,
-    options: ChatOptions
-  ): Promise<Response> {
+    apiKey: string
+  ): ReturnType<typeof postJson> {
     const headers = buildHeaders(apiKey ? { Authorization: `Bearer ${apiKey}` } : {});
     try {
-      return await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-        signal: options.signal,
-      });
-    } catch (err: any) {
-      if (options.signal?.aborted) throw new AIRequestError("已取消");
-      throw new AIRequestError(`网络请求失败：${err?.message || err}`);
+      return postJson(url, body, headers);
+    } catch (err: unknown) {
+      throw new AIRequestError(`网络请求失败：${errorMessage(err)}`);
     }
   }
 }

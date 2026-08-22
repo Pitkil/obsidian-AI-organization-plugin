@@ -1,4 +1,4 @@
-import { Editor, EditorPosition, MarkdownView, Plugin, TFile, setIcon } from "obsidian";
+import { App, Editor, EditorPosition, MarkdownView, Modal, Plugin, TFile, setIcon } from "obsidian";
 import { computeQuoteAnchor, findBestPartialMatch, isSubstantialMatch, posFromOffset, resolveQuoteRange } from "./utils/position";
 import { capScrollPositions, selectionSignature } from "./utils";
 import { notify, notifyError, notifyLoading, notifySuccess } from "./utils/notify";
@@ -52,6 +52,36 @@ function samePosition(a: EditorPosition, b: EditorPosition): boolean {
 
 const annotationRefreshEffect = StateEffect.define<void>();
 
+class ConfirmModal extends Modal {
+  constructor(
+    app: App,
+    private readonly message: string,
+    private readonly onConfirm: () => void | Promise<void>
+  ) {
+    super(app);
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("aio-confirm-modal");
+    contentEl.createEl("h3", { text: "确认操作" });
+    contentEl.createDiv({ cls: "aio-confirm-message", text: this.message });
+    const actions = contentEl.createDiv({ cls: "aio-confirm-actions" });
+    const cancelBtn = actions.createEl("button", { text: "取消", attr: { type: "button" } });
+    cancelBtn.addEventListener("click", () => this.close());
+    const confirmBtn = actions.createEl("button", {
+      cls: "mod-warning",
+      text: "删除",
+      attr: { type: "button" },
+    });
+    confirmBtn.addEventListener("click", () => {
+      this.close();
+      void this.onConfirm();
+    });
+  }
+}
+
 class AnnotationMarkerWidget extends WidgetType {
   constructor(
     private readonly plugin: AIOrganizerPlugin,
@@ -70,7 +100,7 @@ class AnnotationMarkerWidget extends WidgetType {
   }
 
   toDOM(): HTMLElement {
-    const marker = document.createElement("button");
+    const marker = createEl("button");
     marker.type = "button";
     marker.className = this.lost ? "aio-annotation-marker is-lost" : "aio-annotation-marker";
     marker.title = this.lost
@@ -78,8 +108,8 @@ class AnnotationMarkerWidget extends WidgetType {
       : `便签 ${this.annotations.length} 条`;
     marker.setAttribute("aria-label", marker.title);
     marker.textContent = this.annotations.length > 1 ? String(this.annotations.length) : "";
-    marker.addEventListener("mousedown", (evt) => evt.preventDefault());
-    marker.addEventListener("click", (evt) => {
+    marker.addEventListener("mousedown", (evt: MouseEvent) => evt.preventDefault());
+    marker.addEventListener("click", (evt: MouseEvent) => {
       evt.preventDefault();
       evt.stopPropagation();
       this.plugin.showAnnotationThread(this.annotations[0].filePath, this.annotations[0].quote);
@@ -172,8 +202,6 @@ export default class AIOrganizerPlugin extends Plugin {
       this.scrollSaveTimer = null;
     }
     void this.saveSettings();
-    // 清理视图
-    this.app.workspace.detachLeavesOfType(CHAT_VIEW_TYPE);
   }
 
   // ---------------- 命令注册 ----------------
@@ -195,7 +223,7 @@ export default class AIOrganizerPlugin extends Plugin {
 
     this.addCommand({
       id: "open-settings",
-      name: "打开 AI Organizer 设置",
+      name: "打开设置",
       callback: () => app.openSettings(),
     });
 
@@ -523,15 +551,6 @@ export default class AIOrganizerPlugin extends Plugin {
       cls: "aio-selection-close",
       attr: { type: "button", title: "关闭", "aria-label": "关闭选中文本工具栏" },
     });
-    closeBtn.style.width = "30px";
-    closeBtn.style.minWidth = "30px";
-    closeBtn.style.height = "30px";
-    closeBtn.style.minHeight = "30px";
-    closeBtn.style.flex = "0 0 30px";
-    closeBtn.style.margin = "0";
-    closeBtn.style.padding = "0";
-    closeBtn.style.display = "inline-grid";
-    closeBtn.style.placeItems = "center";
     closeBtn.setText("×");
     const close = (evt: Event) => this.closeSelectionToolbar(evt);
     closeBtn.addEventListener("pointerdown", close, { capture: true });
@@ -543,47 +562,38 @@ export default class AIOrganizerPlugin extends Plugin {
   }
 
   private applySelectionToolbarLayout(toolbar: HTMLElement, aiRow: HTMLElement): void {
-    toolbar.style.width = "max-content";
-    toolbar.style.maxWidth = "calc(100vw - 16px)";
-    toolbar.style.minWidth = "0";
-    toolbar.style.alignItems = "center";
-    toolbar.style.padding = "0";
-    toolbar.style.gap = "6px";
-    toolbar.style.borderRadius = "0";
-    toolbar.style.boxSizing = "border-box";
-    toolbar.style.overflow = "visible";
+    toolbar.setCssStyles({
+      width: "max-content",
+      maxWidth: "calc(100vw - 16px)",
+      minWidth: "0",
+      alignItems: "center",
+      padding: "0",
+      gap: "6px",
+      borderRadius: "0",
+      boxSizing: "border-box",
+      overflow: "visible",
+    });
 
-    for (const row of [aiRow]) {
-      row.style.display = "flex";
-      row.style.alignItems = "center";
-      row.style.flexWrap = "wrap";
-      row.style.gap = "4px";
-      row.style.width = "max-content";
-      row.style.maxWidth = "100%";
-      row.style.minWidth = "0";
-      row.style.minHeight = "38px";
-      row.style.overflow = "visible";
-      row.style.boxSizing = "border-box";
-      row.style.scrollbarWidth = "none";
-    }
-
+    aiRow.setCssStyles({
+      display: "flex",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: "4px",
+      width: "max-content",
+      maxWidth: "100%",
+      minWidth: "0",
+      minHeight: "38px",
+      overflow: "visible",
+      boxSizing: "border-box",
+    });
   }
 
   private createSelectionLanguageSelect(toolbar: HTMLElement): HTMLSelectElement {
     const wrap = toolbar.createDiv({ cls: "aio-selection-lang" });
-    wrap.style.height = "30px";
-    wrap.style.display = "inline-flex";
-    wrap.style.alignItems = "center";
-    wrap.style.flex = "0 0 auto";
-    wrap.style.gap = "0";
-    wrap.style.margin = "0";
     const select = wrap.createEl("select", {
       cls: "aio-selection-lang-select",
       attr: { title: "设置翻译目标语言", "aria-label": "设置翻译目标语言" },
     });
-    select.style.height = "30px";
-    select.style.minHeight = "30px";
-    select.style.margin = "0";
     for (const lang of this.translationLanguages(this.settings.translate.defaultTarget)) {
       select.createEl("option", { value: lang, text: lang });
     }
@@ -610,16 +620,6 @@ export default class AIOrganizerPlugin extends Plugin {
       cls: "aio-selection-action",
       attr: { type: "button", title, "aria-label": title },
     });
-    btn.style.height = "30px";
-    btn.style.minHeight = "30px";
-    btn.style.flex = "0 0 auto";
-    btn.style.margin = "0";
-    btn.style.padding = "0 9px";
-    btn.style.display = "inline-flex";
-    btn.style.alignItems = "center";
-    btn.style.justifyContent = "center";
-    btn.style.boxSizing = "border-box";
-    btn.style.lineHeight = "1";
     setIcon(btn.createSpan({ cls: "aio-selection-action-icon" }), icon);
     btn.createSpan({ text: label });
     btn.addEventListener("pointerdown", (evt) => {
@@ -631,16 +631,15 @@ export default class AIOrganizerPlugin extends Plugin {
 
   private positionSelectionToolbar(toolbar: HTMLElement): void {
     const rect = this.selectionDomRect();
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
       const editorRect = mdView?.contentEl.getBoundingClientRect();
       const editorAvailableWidth = editorRect ? editorRect.width - 16 : window.innerWidth - 16;
       const maxWidth = Math.max(220, Math.min(900, editorAvailableWidth));
-      toolbar.style.maxWidth = `${maxWidth}px`;
-      toolbar.style.width = "max-content";
+      toolbar.setCssStyles({ maxWidth: `${maxWidth}px`, width: "max-content" });
       const measuredWidth = Math.ceil(toolbar.getBoundingClientRect().width || toolbar.scrollWidth || 156);
       const width = Math.min(maxWidth, measuredWidth);
-      toolbar.style.width = `${width}px`;
+      toolbar.setCssStyles({ width: `${width}px` });
       const height = toolbar.offsetHeight || 38;
       const preferredLeft = rect ? rect.left + rect.width / 2 - width / 2 : window.innerWidth / 2 - width / 2;
       const minLeft = editorRect ? editorRect.left + 8 : 8;
@@ -649,8 +648,7 @@ export default class AIOrganizerPlugin extends Plugin {
       const preferredTop = rect ? rect.top - height - 8 : 72;
       const fallbackTop = rect ? rect.bottom + 8 : 72;
       const top = preferredTop >= 8 ? preferredTop : Math.min(window.innerHeight - height - 8, Math.max(8, fallbackTop));
-      toolbar.style.left = `${left}px`;
-      toolbar.style.top = `${top}px`;
+      toolbar.setCssStyles({ left: `${left}px`, top: `${top}px` });
     });
   }
 
@@ -783,14 +781,13 @@ export default class AIOrganizerPlugin extends Plugin {
     });
     this.editUndoPillEl = pill;
     pill.addClass("is-visible");
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       const rect = this.selectionDomRect();
       const width = pill.offsetWidth || 150;
       const height = pill.offsetHeight || 38;
       const left = rect ? Math.max(8, Math.min(window.innerWidth - width - 8, rect.left)) : 8;
       const top = rect ? Math.max(8, rect.top - height - 8) : 48;
-      pill.style.left = `${left}px`;
-      pill.style.top = `${top}px`;
+      pill.setCssStyles({ left: `${left}px`, top: `${top}px` });
     });
     if (this.editUndoTimer) window.clearTimeout(this.editUndoTimer);
     this.editUndoTimer = window.setTimeout(() => this.hideEditUndoPill(), 8000);
@@ -903,7 +900,7 @@ export default class AIOrganizerPlugin extends Plugin {
     }
     const apply = () => this.restoreScrollFor(file, true);
     const restored = apply();
-    requestAnimationFrame(apply);
+    window.requestAnimationFrame(apply);
     window.setTimeout(apply, 350);
     if (showNotice) {
       notify(restored ? "已恢复上次浏览位置" : "无法恢复上次浏览位置", {
@@ -930,7 +927,7 @@ export default class AIOrganizerPlugin extends Plugin {
             notifySuccess("已恢复上次浏览位置");
           }
         };
-        requestAnimationFrame(applyWithNotice);
+        window.requestAnimationFrame(applyWithNotice);
         window.setTimeout(apply, 350); // 图片/字体加载完成后二次校正
       })
     );
@@ -1338,7 +1335,7 @@ export default class AIOrganizerPlugin extends Plugin {
 
   private positionFloatingPanel(panel: HTMLElement): void {
     const rect = this.selectionDomRect();
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       const width = panel.offsetWidth || 320;
       const height = panel.offsetHeight || 240;
       const preferredLeft = rect ? rect.left + rect.width / 2 - width / 2 : window.innerWidth / 2 - width / 2;
@@ -1347,8 +1344,7 @@ export default class AIOrganizerPlugin extends Plugin {
       const aboveTop = rect ? rect.top - height - 10 : 80;
       const preferredTop = belowTop + height <= window.innerHeight - 10 ? belowTop : aboveTop;
       const top = Math.min(window.innerHeight - height - 10, Math.max(10, preferredTop));
-      panel.style.left = `${left}px`;
-      panel.style.top = `${top}px`;
+      panel.setCssStyles({ left: `${left}px`, top: `${top}px` });
     });
   }
 
@@ -1488,12 +1484,14 @@ export default class AIOrganizerPlugin extends Plugin {
       this.showThoughtNotePopup(snapshot);
     });
     pill.addClass("is-visible");
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       const rect = this.selectionDomRect();
       const width = pill.offsetWidth || 150;
       const height = pill.offsetHeight || 38;
-      pill.style.left = `${rect ? Math.max(8, Math.min(window.innerWidth - width - 8, rect.left)) : 8}px`;
-      pill.style.top = `${rect ? Math.max(8, rect.top - height - 8) : 48}px`;
+      pill.setCssStyles({
+        left: `${rect ? Math.max(8, Math.min(window.innerWidth - width - 8, rect.left)) : 8}px`,
+        top: `${rect ? Math.max(8, rect.top - height - 8) : 48}px`,
+      });
     });
     window.setTimeout(() => pill.remove(), 6000);
   }
@@ -1784,13 +1782,14 @@ export default class AIOrganizerPlugin extends Plugin {
         text: "删除想法",
         attr: { type: "button" },
       });
-      deleteThoughtBtn.addEventListener("click", async () => {
-        if (!confirm("确定删除这段文字的想法便签吗？")) return;
+      deleteThoughtBtn.addEventListener("click", () => {
+        new ConfirmModal(this.app, "确定删除这段文字的想法便签吗？", async () => {
         for (const item of existingThoughts) {
           await this.deleteAnnotation(item.id, undefined, false, false);
         }
         notifySuccess("已删除想法便签");
         this.showAnnotationThread(filePath, quote);
+        }).open();
       });
     }
     const addBtn = actions.createEl("button", {
@@ -2024,7 +2023,12 @@ export default class AIOrganizerPlugin extends Plugin {
       notifyError("便签不存在");
       return;
     }
-    if (ask && !confirm("确定删除这条便签吗？")) return;
+    if (ask) {
+      new ConfirmModal(this.app, "确定删除这条便签吗？", () => {
+        void this.deleteAnnotation(id, after, false, notify);
+      }).open();
+      return;
+    }
     this.settings.annotations = this.settings.annotations.filter((annotation) => annotation.id !== id);
     await this.saveSettings();
     this.refreshAnnotationDecorations();

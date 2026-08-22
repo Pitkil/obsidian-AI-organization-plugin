@@ -2,9 +2,10 @@ import type { ChatContent, ChatMessage, ChatOptions, ModelProvider, ProviderId }
 import {
   AIRequestError,
   buildHeaders,
+  errorMessage,
+  postJson,
   parseNonStreamJson,
-  readErrorBody,
-  streamLines,
+  readErrorText,
 } from "./http";
 
 // ============================================================
@@ -59,21 +60,16 @@ export class AnthropicProvider implements ModelProvider {
     if (system) body.system = system;
 
     if (options.onStream) {
-      body.stream = true;
       const res = await this.post(url, body, apiKey, options);
-      if (!res.ok) throw new AIRequestError(await readErrorBody(res), res.status);
-      let full = "";
-      await streamLines(res, (delta) => {
-        full += delta;
-        options.onStream?.(delta);
-      }, options.signal);
-      return full;
+      if (!res.ok) throw new AIRequestError(readErrorText(res), res.status);
+      const text = parseNonStreamJson(res.json);
+      options.onStream(text);
+      return text;
     }
 
     const res = await this.post(url, body, apiKey, options);
-    if (!res.ok) throw new AIRequestError(await readErrorBody(res), res.status);
-    const json = await res.json();
-    return parseNonStreamJson(json);
+    if (!res.ok) throw new AIRequestError(readErrorText(res), res.status);
+    return parseNonStreamJson(res.json);
   }
 
   private async post(
@@ -81,21 +77,16 @@ export class AnthropicProvider implements ModelProvider {
     body: Record<string, unknown>,
     apiKey: string,
     options: ChatOptions
-  ): Promise<Response> {
+  ): ReturnType<typeof postJson> {
     const headers = buildHeaders({
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
     });
+    if (options.signal?.aborted) throw new AIRequestError("已取消");
     try {
-      return await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-        signal: options.signal,
-      });
-    } catch (err: any) {
-      if (options.signal?.aborted) throw new AIRequestError("已取消");
-      throw new AIRequestError(`网络请求失败：${err?.message || err}`);
+      return postJson(url, body, headers);
+    } catch (err: unknown) {
+      throw new AIRequestError(`网络请求失败：${errorMessage(err)}`);
     }
   }
 

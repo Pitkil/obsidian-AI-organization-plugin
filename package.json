@@ -1,6 +1,6 @@
 {
   "name": "obsidian-ai-organizer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "All-in-one AI plugin for Obsidian: smart note formatting, image organization, multi-model chat, AI metadata, inbox auto-sort and more.",
   "main": "main.js",
   "scripts": {
@@ -17,11 +17,10 @@
     "formatting",
     "attachment"
   ],
-  "author": "YourName",
+  "author": "Wang Yilai",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.19.43",
-    "builtin-modules": "3.3.0",
     "esbuild": "0.17.3",
     "obsidian": "latest",
     "tslib": "2.4.0",
@@ -29,6 +28,8 @@
     "vitest": "^3.2.7"
   },
   "dependencies": {
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/view": "^6.38.6",
     "tesseract.js": "^7.0.0"
   }
 }

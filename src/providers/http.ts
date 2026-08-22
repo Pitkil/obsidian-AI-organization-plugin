@@ -1,4 +1,5 @@
 import type { ChatOptions } from "../types";
+import { requestUrl } from "obsidian";
 
 // ============================================================
 // 通用 HTTP / 流式解析工具
@@ -189,4 +190,47 @@ export function buildHeaders(extra: Record<string, string> = {}): Record<string,
     "Content-Type": "application/json",
     ...extra,
   };
+}
+
+export interface JsonPostResult {
+  ok: boolean;
+  status: number;
+  json: unknown;
+  text: string;
+}
+
+export async function postJson(
+  url: string,
+  body: Record<string, unknown>,
+  headers: Record<string, string>
+): Promise<JsonPostResult> {
+  const response = await requestUrl({
+    url,
+    method: "POST",
+    contentType: "application/json",
+    headers,
+    body: JSON.stringify(body),
+    throw: false,
+  });
+
+  return {
+    ok: response.status >= 200 && response.status < 300,
+    status: response.status,
+    json: response.json,
+    text: response.text,
+  };
+}
+
+export function readErrorText(response: JsonPostResult): string {
+  if (!response.text) return "未知错误";
+  try {
+    const json = JSON.parse(response.text);
+    return json?.error?.message || json?.message || response.text.slice(0, 300);
+  } catch {
+    return response.text.slice(0, 300);
+  }
+}
+
+export function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

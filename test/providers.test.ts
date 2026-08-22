@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { requestUrl } from "obsidian";
 import {
   AIRequestError,
   buildHeaders,
@@ -11,6 +12,10 @@ import { OpenAICompatibleProvider } from "../src/providers/openaiCompatible";
 import { AnthropicProvider } from "../src/providers/anthropic";
 import { GeminiProvider } from "../src/providers/gemini";
 import type { ChatMessage } from "../src/types";
+
+vi.mock("obsidian", () => ({
+  requestUrl: vi.fn(),
+}));
 
 describe("extractDelta", () => {
   it("解析 OpenAI 流式增量", () => {
@@ -145,16 +150,20 @@ describe("OpenAICompatibleProvider", () => {
   const messages: ChatMessage[] = [{ role: "user", content: "hi" }];
 
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.mocked(requestUrl).mockReset();
   });
   afterEach(() => {
-    vi.unstubAllGlobals();
+    vi.clearAllMocks();
   });
 
   function mockJsonResponse(body: unknown, status = 200) {
-    (fetch as any).mockResolvedValue(
-      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
-    );
+    vi.mocked(requestUrl).mockResolvedValue({
+      status,
+      headers: {},
+      arrayBuffer: new ArrayBuffer(0),
+      json: body,
+      text: JSON.stringify(body),
+    });
   }
 
   it("isConfigured 需要 enabled + baseUrl + model", () => {
@@ -175,8 +184,8 @@ describe("OpenAICompatibleProvider", () => {
     const out = await p.chat(messages, { model: "deepseek-chat", temperature: 0.5, maxTokens: 2048 });
     expect(out).toBe("回复");
 
-    const [url, init] = (fetch as any).mock.calls[0];
-    expect(url).toBe("https://api.deepseek.com/v1/chat/completions");
+    const init = vi.mocked(requestUrl).mock.calls[0][0] as any;
+    expect(init.url).toBe("https://api.deepseek.com/v1/chat/completions");
     expect(init.method).toBe("POST");
     expect(init.headers.Authorization).toBe("Bearer sk-1");
     const body = JSON.parse(init.body);
@@ -187,7 +196,7 @@ describe("OpenAICompatibleProvider", () => {
   });
 
   it("非 200 抛 AIRequestError", async () => {
-    (fetch as any).mockResolvedValue(new Response(JSON.stringify({ error: { message: "bad key" } }), { status: 401 }));
+    mockJsonResponse({ error: { message: "bad key" } }, 401);
     const p = new OpenAICompatibleProvider(() => ({ enabled: true, baseUrl: "https://x/v1", apiKey: "k", model: "m", temperature: 0.7, maxTokens: 1024 }));
     await expect(p.chat(messages, { model: "m" })).rejects.toThrow(/bad key/);
   });
@@ -195,10 +204,10 @@ describe("OpenAICompatibleProvider", () => {
 
 describe("AnthropicProvider", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.mocked(requestUrl).mockReset();
   });
   afterEach(() => {
-    vi.unstubAllGlobals();
+    vi.clearAllMocks();
   });
 
   it("isConfigured 需要 key + model", () => {
@@ -209,9 +218,13 @@ describe("AnthropicProvider", () => {
   });
 
   it("system 独立字段 + 正确请求头", async () => {
-    (fetch as any).mockResolvedValue(
-      new Response(JSON.stringify({ content: [{ type: "text", text: "claude 回复" }] }), { status: 200 })
-    );
+    vi.mocked(requestUrl).mockResolvedValue({
+      status: 200,
+      headers: {},
+      arrayBuffer: new ArrayBuffer(0),
+      json: { content: [{ type: "text", text: "claude 回复" }] },
+      text: JSON.stringify({ content: [{ type: "text", text: "claude 回复" }] }),
+    });
     const p = new AnthropicProvider(() => ({ enabled: true, apiKey: "ak", model: "claude-3-5-sonnet", temperature: 0.7, maxTokens: 4096 }));
     const out = await p.chat(
       [
@@ -222,8 +235,8 @@ describe("AnthropicProvider", () => {
     );
     expect(out).toBe("claude 回复");
 
-    const [url, init] = (fetch as any).mock.calls[0];
-    expect(url).toBe("https://api.anthropic.com/v1/messages");
+    const init = vi.mocked(requestUrl).mock.calls[0][0] as any;
+    expect(init.url).toBe("https://api.anthropic.com/v1/messages");
     expect(init.headers["x-api-key"]).toBe("ak");
     expect(init.headers["anthropic-version"]).toBe("2023-06-01");
     const body = JSON.parse(init.body);
@@ -232,34 +245,42 @@ describe("AnthropicProvider", () => {
   });
 
   it("endpoint 自动补 /messages", async () => {
-    (fetch as any).mockResolvedValue(
-      new Response(JSON.stringify({ content: [{ type: "text", text: "x" }] }), { status: 200 })
-    );
+    vi.mocked(requestUrl).mockResolvedValue({
+      status: 200,
+      headers: {},
+      arrayBuffer: new ArrayBuffer(0),
+      json: { content: [{ type: "text", text: "x" }] },
+      text: JSON.stringify({ content: [{ type: "text", text: "x" }] }),
+    });
     const p = new AnthropicProvider(() => ({ enabled: true, apiKey: "ak", model: "m", temperature: 0.7, maxTokens: 1024 }));
     await p.chat([{ role: "user", content: "hi" }], { model: "m", baseUrl: "https://proxy.example.com" });
-    const [url] = (fetch as any).mock.calls[0];
-    expect(url).toBe("https://proxy.example.com/messages");
+    const init = vi.mocked(requestUrl).mock.calls[0][0] as any;
+    expect(init.url).toBe("https://proxy.example.com/messages");
   });
 });
 
 describe("GeminiProvider", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.mocked(requestUrl).mockReset();
   });
   afterEach(() => {
-    vi.unstubAllGlobals();
+    vi.clearAllMocks();
   });
 
   it("key 放在 URL 且解析 candidates", async () => {
-    (fetch as any).mockResolvedValue(
-      new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "gemini 回复" }] } }] }), { status: 200 })
-    );
+    vi.mocked(requestUrl).mockResolvedValue({
+      status: 200,
+      headers: {},
+      arrayBuffer: new ArrayBuffer(0),
+      json: { candidates: [{ content: { parts: [{ text: "gemini 回复" }] } }] },
+      text: JSON.stringify({ candidates: [{ content: { parts: [{ text: "gemini 回复" }] } }] }),
+    });
     const p = new GeminiProvider(() => ({ enabled: true, apiKey: "gk", model: "gemini-1.5-pro", temperature: 0.7, maxTokens: 1024 }));
     const out = await p.chat([{ role: "user", content: "hi" }], { model: "gemini-1.5-pro" });
     expect(out).toBe("gemini 回复");
 
-    const [url, init] = (fetch as any).mock.calls[0];
-    expect(url).toContain("key=gk");
+    const init = vi.mocked(requestUrl).mock.calls[0][0] as any;
+    expect(init.url).toContain("key=gk");
     expect(init.headers["Content-Type"]).toBe("application/json");
   });
 

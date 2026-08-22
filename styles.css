@@ -166,7 +166,7 @@
    ============================================================ */
 .aio-chat-empty,
 .aio-model-picker.is-hidden {
-  display: none !important;
+  display: none;
 }
 
 .aio-model-config-bar {
@@ -420,8 +420,8 @@
 }
 .aio-diff-remove {
   background: color-mix(in srgb, #dc2626 14%, transparent);
-  text-decoration: line-through;
   color: var(--text-muted);
+  opacity: 0.72;
 }
 .aio-diff-remove .aio-diff-marker {
   color: #b91c1c;
@@ -1230,7 +1230,7 @@
   height: 17px;
 }
 .is-hidden {
-  display: none !important;
+  display: none;
 }
 
 /* ---- 打字指示器 ---- */
@@ -1503,14 +1503,14 @@
   .aio-chat-empty,
   .aio-typing-dot,
   .aio-spinner {
-    animation: none !important;
+    animation: none;
   }
   .aio-btn,
   .aio-toggle,
   .aio-icon-btn,
   .aio-tool-btn,
   .aio-model-profile-btn {
-    transition: none !important;
+    transition: none;
   }
 }
 
@@ -1562,12 +1562,8 @@
   border-radius: 9px;
   background: color-mix(in srgb, var(--aio-surface) 97%, #ffffff);
   box-shadow: 0 8px 24px rgba(28, 36, 33, 0.12);
-  scrollbar-width: none;
   overscroll-behavior-x: contain;
   box-sizing: border-box;
-}
-.aio-selection-row::-webkit-scrollbar {
-  display: none;
 }
 .aio-selection-ai-row {
   min-height: 38px;
@@ -2142,8 +2138,7 @@
 .aio-annotation-highlight.is-lost {
   background: color-mix(in srgb, #78817c 22%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, #78817c 30%, transparent);
-  text-decoration: line-through;
-  text-decoration-color: color-mix(in srgb, #78817c 55%, transparent);
+  opacity: 0.72;
 }
 .aio-annotation-marker {
   display: inline-flex;

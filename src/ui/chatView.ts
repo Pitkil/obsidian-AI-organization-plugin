@@ -428,7 +428,7 @@ export class ChatView extends ItemView {
     const epoch = this.renderEpoch;
     const serial = ++this.renderSerial;
     content.dataset.aioRenderSerial = String(serial);
-    const scratch = document.createElement("div");
+    const scratch = createDiv();
     void MarkdownRenderer.render(this.app, text, scratch, "", this).then(() => {
       if (epoch !== this.renderEpoch || content.dataset.aioRenderSerial !== String(serial) || !content.isConnected) return;
       content.empty();
@@ -476,7 +476,7 @@ export class ChatView extends ItemView {
   }
 
   private scrollToBottom(): void {
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       this.messageContainer.scrollTop = this.messageContainer.scrollHeight;
     });
   }
