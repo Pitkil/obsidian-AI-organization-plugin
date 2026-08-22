@@ -72,6 +72,9 @@ export class ChatService {
       kind === "vision"
         ? this.plugin.settings.activeVisionModelProfileId
         : this.plugin.settings.activeTextModelProfileId || this.plugin.settings.activeModelProfileId;
+    if (kind === "vision" && !profileId && !activeId) {
+      return undefined;
+    }
     return (
       profiles.find((profile) => profile.id === profileId) ??
       profiles.find((profile) => profile.id === activeId) ??

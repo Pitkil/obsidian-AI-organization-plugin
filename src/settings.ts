@@ -80,7 +80,7 @@ export interface AIOrganizerSettings {
     visionMaxImages: number;
     visionMaxImageSizeMB: number;
     ocrFallbackEnabled: boolean;
-    ocrEndpoint: string;
+    ocrLanguages: string;
   };
 
   // ---------- AI 元数据（标签/摘要/别名） ----------
@@ -184,7 +184,7 @@ export const DEFAULT_SETTINGS: AIOrganizerSettings = {
     visionMaxImages: 20,
     visionMaxImageSizeMB: 5,
     ocrFallbackEnabled: true,
-    ocrEndpoint: "",
+    ocrLanguages: "chi_sim+eng",
   },
 
   metadata: {
@@ -303,7 +303,7 @@ function normalizeSettings(settings: AIOrganizerSettings): AIOrganizerSettings {
   );
 
   if (!activeText && textFallback) settings.activeTextModelProfileId = textFallback.id;
-  if (!activeVision) settings.activeVisionModelProfileId = visionFallback?.id ?? "";
+  if (!activeVision && settings.activeVisionModelProfileId) settings.activeVisionModelProfileId = visionFallback?.id ?? "";
   if (!settings.activeTextModelProfileId && legacyActive?.kind !== "vision") {
     settings.activeTextModelProfileId = legacyActive?.id ?? "";
   }

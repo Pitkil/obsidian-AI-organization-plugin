@@ -362,7 +362,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("当前视觉模型")
-      .setDesc("可选。只有当前笔记或选中文本包含图片时，才先用它读取图片，再交给文本模型。")
+      .setDesc("多个视觉模型时，只使用这里选中的一个；不使用视觉模型时走内置 OCR 兜底。")
       .addDropdown((dd) => {
         dd.addOption("", "不使用视觉模型");
         for (const profile of visionProfiles) {
@@ -778,8 +778,8 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("OCR 兜底")
-      .setDesc("视觉模型未配置或调用失败时，自动尝试 OCR。OCR 只负责读图中文字，再交给文本模型理解。")
+      .setName("内置 OCR 兜底")
+      .setDesc("视觉模型未配置或调用失败时，插件内置 OCR 会先读图中文字，再交给文本模型理解。")
       .addToggle((t) =>
         t.setValue(s.imageOrg.ocrFallbackEnabled !== false).onChange(async (v) => {
           s.imageOrg.ocrFallbackEnabled = v;
@@ -787,11 +787,11 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("OCR 接口")
-      .setDesc("本地 OCR 服务地址。POST JSON：{ images: [{ name, mimeType, data }] }；可返回纯文本、{ text } 或 { results: [{ name, text }] }。")
+      .setName("OCR 语言")
+      .setDesc("内置 OCR 使用的语言包。中文+英文默认 chi_sim+eng；英文可用 eng；繁体可用 chi_tra+eng。")
       .addText((t) =>
-        t.setPlaceholder("http://localhost:7331/ocr").setValue(s.imageOrg.ocrEndpoint ?? "").onChange(async (v) => {
-          s.imageOrg.ocrEndpoint = v.trim();
+        t.setPlaceholder("chi_sim+eng").setValue(s.imageOrg.ocrLanguages ?? "chi_sim+eng").onChange(async (v) => {
+          s.imageOrg.ocrLanguages = v.trim() || "chi_sim+eng";
           await this.plugin.saveSettings();
         })
       );

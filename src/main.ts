@@ -1211,6 +1211,21 @@ export default class AIOrganizerPlugin extends Plugin {
     const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
     const cm = (mdView?.editor as unknown as { cm?: EditorView }).cm;
     cm?.dispatch({ effects: annotationRefreshEffect.of() });
+    window.requestAnimationFrame(() => cm?.dispatch({ effects: annotationRefreshEffect.of() }));
+    window.setTimeout(() => cm?.dispatch({ effects: annotationRefreshEffect.of() }), 80);
+  }
+
+  private async pruneMissingAnnotations(file: TFile): Promise<boolean> {
+    const content = await this.app.vault.cachedRead(file);
+    const before = this.settings.annotations.length;
+    this.settings.annotations = this.settings.annotations.filter((item) => {
+      if (item.filePath !== file.path) return true;
+      return item.quote.trim().length > 1 && content.includes(item.quote.trim());
+    });
+    if (this.settings.annotations.length === before) return false;
+    await this.saveSettings();
+    this.refreshAnnotationDecorations();
+    return true;
   }
 
   private uniqueAnnotations(items: AIOAnnotation[]): AIOAnnotation[] {
@@ -1230,6 +1245,7 @@ export default class AIOrganizerPlugin extends Plugin {
       this.settings.annotations.filter((item) => item.filePath === filePath && item.quote === quote)
     );
     if (annotations.length === 0) {
+      this.hideTranslationPopup();
       new Notice("这段文字还没有便签");
       return;
     }
@@ -1255,16 +1271,29 @@ export default class AIOrganizerPlugin extends Plugin {
     if (translation?.translated) {
       const result = popup.createDiv({ cls: "aio-annotation-result" });
       const resultHead = result.createDiv({ cls: "aio-annotation-card-head" });
-      resultHead.createSpan({
+      const resultMeta = resultHead.createDiv({ cls: "aio-annotation-meta" });
+      resultMeta.createSpan({
         cls: "aio-annotation-kind",
         text: translation.targetLang ? `翻译 · ${translation.targetLang}` : "翻译",
       });
-      resultHead.createSpan({ cls: "aio-annotation-time", text: new Date(translation.updatedAt).toLocaleString() });
+      resultMeta.createSpan({ cls: "aio-annotation-time", text: new Date(translation.updatedAt).toLocaleString() });
+      const deleteTranslationBtn = resultHead.createEl("button", {
+        cls: "aio-annotation-mini-btn is-danger",
+        attr: { type: "button", title: "删除翻译便签", "aria-label": "删除翻译便签" },
+      });
+      setIcon(deleteTranslationBtn.createSpan({ cls: "aio-annotation-mini-btn-icon" }), "trash-2");
+      deleteTranslationBtn.addEventListener("click", async (evt) => {
+        evt.stopPropagation();
+        await this.deleteAnnotation(translation.id, () => this.showAnnotationThread(filePath, quote));
+      });
       result.createDiv({ cls: "aio-annotation-body", text: translation.translated });
     }
 
     const composer = popup.createDiv({ cls: "aio-annotation-composer" });
     composer.createDiv({ cls: "aio-translation-thought-label", text: "自己的想法" });
+    const existingThoughts = this.settings.annotations.filter(
+      (item) => item.filePath === filePath && item.type === "thought" && item.quote === quote
+    );
     const thoughtEl = composer.createEl("textarea", {
       cls: "aio-translation-thought-input",
       attr: {
@@ -1272,10 +1301,23 @@ export default class AIOrganizerPlugin extends Plugin {
         placeholder: "写下或修改你的理解、疑问、关联线索...",
       },
     });
-    thoughtEl.value = this.combineThoughts(
-      this.settings.annotations.filter((item) => item.filePath === filePath && item.type === "thought" && item.quote === quote)
-    );
+    thoughtEl.value = this.combineThoughts(existingThoughts);
     const actions = popup.createDiv({ cls: "aio-translation-actions" });
+    if (existingThoughts.length > 0) {
+      const deleteThoughtBtn = actions.createEl("button", {
+        cls: "aio-translation-action is-danger",
+        text: "删除想法",
+        attr: { type: "button" },
+      });
+      deleteThoughtBtn.addEventListener("click", async () => {
+        if (!confirm("确定删除这段文字的想法便签吗？")) return;
+        for (const item of existingThoughts) {
+          await this.deleteAnnotation(item.id, undefined, false, false);
+        }
+        new Notice("已删除想法便签");
+        this.showAnnotationThread(filePath, quote);
+      });
+    }
     const addBtn = actions.createEl("button", {
       cls: "aio-translation-action is-primary",
       text: thoughtEl.value.trim() ? "保存修改" : "保存想法",
@@ -1305,6 +1347,11 @@ export default class AIOrganizerPlugin extends Plugin {
       new Notice("先打开一篇 Markdown 笔记");
       return;
     }
+    void this.pruneMissingAnnotations(file).then((changed) => {
+      if (changed && this.translationPopupEl?.hasClass("is-visible")) {
+        this.openAnnotationPanel();
+      }
+    });
 
     const annotations = this.uniqueAnnotations(this.settings.annotations.filter((item) => item.filePath === file.path))
       .sort((a, b) => b.updatedAt - a.updatedAt);
@@ -1332,23 +1379,69 @@ export default class AIOrganizerPlugin extends Plugin {
       return;
     }
 
+    popup.createDiv({
+      cls: "aio-annotation-panel-summary",
+      text: `${annotations.length} 条便签，点击卡片编辑，右侧可删除。`,
+    });
     const list = popup.createDiv({ cls: "aio-annotation-panel-list" });
     for (const item of annotations) {
-      const row = list.createEl("button", {
+      const row = list.createDiv({
         cls: "aio-annotation-panel-item",
-        attr: { type: "button" },
       });
+      row.setAttr("role", "button");
+      row.setAttr("tabindex", "0");
+      row.setAttr("aria-label", "打开便签");
       const top = row.createDiv({ cls: "aio-annotation-panel-item-head" });
-      top.createSpan({ cls: "aio-annotation-kind", text: item.type === "translation" ? "翻译" : "想法" });
-      top.createSpan({ cls: "aio-annotation-time", text: new Date(item.updatedAt).toLocaleString() });
+      const meta = top.createDiv({ cls: "aio-annotation-meta" });
+      meta.createSpan({ cls: "aio-annotation-kind", text: item.type === "translation" ? "翻译" : "想法" });
+      meta.createSpan({ cls: "aio-annotation-time", text: new Date(item.updatedAt).toLocaleString() });
+      const rowActions = top.createDiv({ cls: "aio-annotation-row-actions" });
+      const editBtn = rowActions.createEl("button", {
+        cls: "aio-annotation-mini-btn",
+        attr: { type: "button", title: "编辑便签", "aria-label": "编辑便签" },
+      });
+      setIcon(editBtn.createSpan({ cls: "aio-annotation-mini-btn-icon" }), "edit-3");
+      editBtn.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        this.showAnnotationThread(item.filePath, item.quote);
+      });
+      const deleteBtn = rowActions.createEl("button", {
+        cls: "aio-annotation-mini-btn is-danger",
+        attr: { type: "button", title: "删除便签", "aria-label": "删除便签" },
+      });
+      setIcon(deleteBtn.createSpan({ cls: "aio-annotation-mini-btn-icon" }), "trash-2");
+      deleteBtn.addEventListener("click", async (evt) => {
+        evt.stopPropagation();
+        await this.deleteAnnotation(item.id, () => this.openAnnotationPanel());
+      });
       row.createDiv({
         cls: "aio-annotation-panel-body",
         text: item.thought || item.translated || "打开后编辑便签内容",
       });
       row.addEventListener("click", () => this.showAnnotationThread(item.filePath, item.quote));
+      row.addEventListener("keydown", (evt) => {
+        if (evt.key === "Enter" || evt.key === " ") {
+          evt.preventDefault();
+          this.showAnnotationThread(item.filePath, item.quote);
+        }
+      });
     }
 
     this.positionFloatingPanel(popup);
+  }
+
+  private async deleteAnnotation(id: string, after?: () => void, ask = true, notify = true): Promise<void> {
+    const item = this.settings.annotations.find((annotation) => annotation.id === id);
+    if (!item) {
+      new Notice("这条便签已经不存在");
+      return;
+    }
+    if (ask && !confirm("确定删除这条便签吗？")) return;
+    this.settings.annotations = this.settings.annotations.filter((annotation) => annotation.id !== id);
+    await this.saveSettings();
+    this.refreshAnnotationDecorations();
+    if (notify) new Notice("已删除便签");
+    after?.();
   }
 
   private snapshotForAnnotation(filePath: string, quote: string): AIOSelectionSnapshot {

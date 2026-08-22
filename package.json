@@ -24,5 +24,8 @@
     "obsidian": "latest",
     "tslib": "2.4.0",
     "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "tesseract.js": "^7.0.0"
   }
 }

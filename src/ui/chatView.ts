@@ -8,6 +8,7 @@ import {
   normalizePath,
   setIcon,
 } from "obsidian";
+import * as Tesseract from "tesseract.js";
 import type AIOrganizerPlugin from "../main";
 import type { ChatImagePart, ChatMessage, ModelProvider } from "../types";
 import { timestamp } from "../utils";
@@ -616,49 +617,33 @@ export class ChatView extends ItemView {
   private async runOcrFallback(images: ChatImagePart[]): Promise<string> {
     const cfg = this.plugin.settings.imageOrg;
     if (!cfg.ocrFallbackEnabled) return "OCR 兜底：已关闭。";
-    const endpoint = cfg.ocrEndpoint?.trim();
-    if (!endpoint) {
-      return "OCR 兜底：未配置 OCR 接口，因此只能把图片文件名/链接交给文本模型。";
-    }
+    const languages = cfg.ocrLanguages?.trim() || "chi_sim+eng";
 
     try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          images: images.map((image) => ({
-            name: image.name,
-            mimeType: image.mimeType,
-            data: image.data,
-          })),
-        }),
-      });
-      if (!res.ok) return `OCR 兜底失败：HTTP ${res.status}`;
-      const contentType = res.headers.get("content-type") ?? "";
-      const payload = contentType.includes("application/json") ? await res.json() : await res.text();
-      const text = this.extractOcrText(payload);
-      return text ? `OCR 兜底结果：\n${text}` : "OCR 兜底：接口没有返回可用文字。";
+      const results: string[] = [];
+      for (const image of images) {
+        const result = await Tesseract.recognize(
+          `data:${image.mimeType};base64,${image.data}`,
+          languages,
+          {
+            logger: (message) => {
+              if (message.status === "recognizing text") {
+                // Keep logger quiet; Obsidian UI stays responsive while OCR runs.
+              }
+            },
+          }
+        );
+        const text = result.data.text.trim();
+        if (text) {
+          results.push(image.name ? `### ${image.name}\n${text}` : text);
+        }
+      }
+      return results.length > 0
+        ? `内置 OCR 兜底结果（${languages}）：\n${results.join("\n\n")}`
+        : `内置 OCR 兜底：未识别出文字（${languages}）。`;
     } catch (err: any) {
-      return `OCR 兜底失败：${err?.message || err}`;
+      return `内置 OCR 兜底失败：${err?.message || err}`;
     }
-  }
-
-  private extractOcrText(payload: unknown): string {
-    if (typeof payload === "string") return payload.trim();
-    if (!payload || typeof payload !== "object") return "";
-    const data = payload as Record<string, any>;
-    if (typeof data.text === "string") return data.text.trim();
-    if (Array.isArray(data.results)) {
-      return data.results
-        .map((item: any) => {
-          const text = String(item?.text ?? "").trim();
-          if (!text) return "";
-          return item?.name ? `### ${item.name}\n${text}` : text;
-        })
-        .filter(Boolean)
-        .join("\n\n");
-    }
-    return "";
   }
 
   private extractImageRefs(markdown: string): string[] {
@@ -766,9 +751,11 @@ export class ChatView extends ItemView {
   private updateContextMeter(chars: number, label: string): void {
     if (!this.contextMeter || !this.contextMeterValue) return;
     const percent = Math.max(0, Math.min(100, Math.round((chars / CONTEXT_CHAR_BUDGET) * 100)));
+    const summary = `${label}，约占上下文 ${percent}%`;
     this.contextMeter.style.setProperty("--aio-context-percent", `${percent}%`);
-    this.contextMeterValue.setText(`${percent}%`);
-    this.contextMeter.setAttr("title", `${label}，约占上下文 ${percent}%`);
+    this.contextMeterValue.setText("");
+    this.contextMeter.setAttr("title", summary);
+    this.contextMeter.setAttr("aria-label", summary);
     this.contextMeter.toggleClass("is-warn", percent >= 70 && percent < 90);
     this.contextMeter.toggleClass("is-danger", percent >= 90);
   }
