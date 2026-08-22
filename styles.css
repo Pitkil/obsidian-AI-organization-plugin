@@ -1,0 +1,2234 @@
+/* ============================================================
+   AI Organizer — 统一样式 v3
+   模态框 / 对话面板：PunditRAG 风格（墨绿品牌 + 琥珀强调 + 暖纸表面）
+   设置页：回归 Obsidian 原生样式
+   ============================================================ */
+
+/* ---------- 设计令牌（模态框 + 设置页自定义组件共用） ---------- */
+.aio-settings,
+.aio-modal,
+.aio-chat {
+  --aio-primary: #08796f;
+  --aio-primary-strong: #075d56;
+  --aio-primary-soft: color-mix(in srgb, #dcece7 72%, var(--background-primary));
+  --aio-primary-border: color-mix(in srgb, #08796f 34%, var(--background-modifier-border));
+  --aio-accent: #e98b52;
+  --aio-accent-strong: #c96f3a;
+  --aio-accent-soft: color-mix(in srgb, #f6e3d8 70%, var(--background-primary));
+  --aio-ink: var(--text-normal);
+  --aio-muted: var(--text-muted);
+  --aio-faint: var(--text-faint);
+  --aio-surface: var(--background-primary);
+  --aio-surface-2: var(--background-secondary);
+  --aio-hover: var(--background-modifier-hover);
+  --aio-line: var(--background-modifier-border);
+  --aio-radius: 10px;
+  --aio-radius-sm: 7px;
+  --aio-transition: 160ms ease;
+}
+
+/* ---------- 对话面板：PunditRAG 暖纸风格覆盖 ---------- */
+.aio-chat {
+  --aio-primary: #08796f;
+  --aio-primary-strong: #075d56;
+  --aio-primary-soft: #dcece7;
+  --aio-primary-border: color-mix(in srgb, #08796f 34%, #ddd9ce);
+  --aio-accent: #e98b52;
+  --aio-accent-strong: #c96f3a;
+  --aio-accent-soft: #f6e3d8;
+  --aio-ink: #1c2421;
+  --aio-muted: #78817c;
+  --aio-faint: #a3aca7;
+  --aio-surface: #fffdf8;
+  --aio-surface-2: #f3f0e8;
+  --aio-line: #ddd9ce;
+  --aio-hover: #ece7dc;
+}
+
+.aio-settings :is(button, select, input, textarea):focus-visible,
+.aio-chat :is(button, select, textarea):focus-visible,
+.aio-modal :is(button, select, input, textarea):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--aio-primary) 60%, transparent);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   通用按钮
+   ============================================================ */
+.aio-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: var(--aio-radius-sm);
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--aio-transition), color var(--aio-transition),
+    border-color var(--aio-transition), transform var(--aio-transition);
+  user-select: none;
+}
+.aio-btn svg {
+  width: 15px;
+  height: 15px;
+}
+.aio-btn:active {
+  transform: scale(0.97);
+}
+.aio-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.aio-btn-primary {
+  background: var(--aio-primary);
+  color: #fff;
+  border-color: color-mix(in srgb, var(--aio-primary) 78%, #000);
+}
+.aio-btn-primary:hover {
+  background: var(--aio-primary-strong);
+}
+.aio-btn-ghost {
+  background: transparent;
+  border-color: var(--aio-line);
+  color: var(--text-normal);
+}
+.aio-btn-ghost:hover {
+  background: var(--aio-hover);
+}
+.aio-btn-warn {
+  background: var(--aio-accent);
+  color: #fff;
+}
+.aio-btn-warn:hover {
+  background: var(--aio-accent-strong);
+}
+.aio-btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+/* ---------- 输入控件 ---------- */
+.aio-input,
+.aio-select {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--aio-radius-sm);
+  border: 1px solid var(--aio-line);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 13px;
+  transition: border-color var(--aio-transition), box-shadow var(--aio-transition);
+}
+.aio-input:focus,
+.aio-select:focus {
+  border-color: var(--aio-primary);
+  box-shadow: 0 0 0 2px var(--aio-primary-soft);
+  outline: none;
+}
+.aio-textarea {
+  width: 100%;
+  font-family: var(--font-interface);
+}
+
+/* ---------- 图标按钮 ---------- */
+.aio-icon-btn {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--aio-muted);
+  box-shadow: none;
+  appearance: none;
+  cursor: pointer;
+  transition: background var(--aio-transition), color var(--aio-transition);
+}
+.aio-icon-btn:hover {
+  background: var(--aio-hover);
+  color: var(--aio-primary-strong);
+}
+.aio-icon-btn svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 2.3px;
+}
+
+/* ============================================================
+   模型档案配置（设置页内）
+   ============================================================ */
+.aio-chat-empty,
+.aio-model-picker.is-hidden {
+  display: none !important;
+}
+
+.aio-model-config-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--aio-line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--aio-primary) 6%, var(--background-primary));
+}
+.aio-model-config-copy {
+  min-width: 0;
+}
+.aio-model-config-title {
+  color: var(--aio-ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+.aio-model-config-desc {
+  margin-top: 4px;
+  color: var(--aio-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.aio-local-vision-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px dashed color-mix(in srgb, var(--aio-primary) 34%, var(--aio-line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--aio-primary) 5%, var(--background-primary));
+}
+.aio-local-vision-copy {
+  min-width: 0;
+}
+.aio-local-vision-title {
+  color: var(--aio-primary-strong);
+  font-size: 13px;
+  font-weight: 850;
+}
+.aio-local-vision-desc {
+  margin-top: 3px;
+  color: var(--aio-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.aio-local-vision-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.aio-model-add-btn,
+.aio-model-profile-btn {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--aio-line);
+  border-radius: 7px;
+  background: var(--background-primary);
+  color: var(--aio-ink);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color var(--aio-transition), color var(--aio-transition), background var(--aio-transition);
+}
+.aio-model-add-btn {
+  border-color: var(--aio-primary-border);
+  background: var(--aio-primary-soft);
+  color: var(--aio-primary-strong);
+  flex-shrink: 0;
+}
+.aio-model-add-btn:hover,
+.aio-model-profile-btn:hover {
+  border-color: color-mix(in srgb, var(--aio-primary) 55%, var(--aio-line));
+  color: var(--aio-primary-strong);
+}
+.aio-model-profile-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.aio-model-profile-btn.is-danger:hover {
+  border-color: var(--aio-accent);
+  color: var(--aio-accent-strong);
+  background: var(--aio-accent-soft);
+}
+
+.aio-model-profile-list {
+  display: grid;
+  gap: 12px;
+  margin: 8px 0 14px;
+}
+.aio-model-empty {
+  padding: 18px;
+  border: 1px dashed var(--aio-line);
+  border-radius: 8px;
+  color: var(--aio-muted);
+  font-size: 13px;
+  text-align: center;
+}
+.aio-model-profile-card {
+  border: 1px solid var(--aio-line);
+  border-left: 3px solid transparent;
+  border-radius: 8px;
+  background: var(--background-primary);
+  overflow: hidden;
+}
+.aio-model-profile-card.is-active {
+  border-left-color: var(--aio-primary);
+}
+.aio-model-profile-card.is-incomplete {
+  border-left-color: var(--aio-accent);
+}
+.aio-model-profile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--aio-line);
+  background: var(--aio-surface-2);
+}
+.aio-model-profile-title {
+  min-width: 0;
+}
+.aio-model-profile-name {
+  color: var(--aio-ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+.aio-model-profile-meta {
+  margin-top: 3px;
+  color: var(--aio-muted);
+  font-size: 12px;
+}
+.aio-model-profile-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+.aio-model-profile-card .setting-item {
+  padding: 9px 14px;
+}
+.aio-model-profile-card .setting-item-heading {
+  padding: 10px 14px 4px;
+  background: transparent;
+}
+
+@media (max-width: 720px) {
+  .aio-model-config-bar,
+  .aio-local-vision-bar,
+  .aio-model-profile-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .aio-model-profile-actions,
+  .aio-local-vision-actions {
+    justify-content: flex-end;
+  }
+}
+
+/* ============================================================
+   模态框通用
+   ============================================================ */
+.aio-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px 12px;
+}
+.aio-modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-normal);
+}
+.aio-modal-sub {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  padding: 4px 0 10px;
+}
+.aio-modal-stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 0 12px;
+}
+.aio-stat {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.aio-stat-add {
+  background: color-mix(in srgb, #16a34a 14%, transparent);
+  color: #15803d;
+}
+.aio-stat-remove {
+  background: color-mix(in srgb, #dc2626 14%, transparent);
+  color: #b91c1c;
+}
+.aio-stat-warn {
+  background: var(--aio-accent-soft);
+  color: var(--aio-accent-strong);
+}
+.aio-stat-neutral {
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+.aio-format-warning {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--aio-accent) 36%, var(--aio-line));
+  border-left: 3px solid var(--aio-accent);
+  border-radius: 8px;
+  background: var(--aio-accent-soft);
+  color: var(--aio-accent-strong);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.aio-modal-body {
+  max-height: 55vh;
+  overflow: auto;
+  border: 1px solid var(--aio-line);
+  border-radius: var(--aio-radius);
+  background: var(--background-secondary);
+}
+.aio-format-empty {
+  padding: 24px 16px;
+  color: var(--aio-accent-strong);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.aio-code {
+  margin: 0;
+  padding: 14px;
+  font-family: var(--font-monospace);
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-normal);
+  max-height: 55vh;
+  overflow: auto;
+}
+.aio-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 14px;
+}
+
+/* ---------- 标签页 ---------- */
+.aio-tabs {
+  display: flex;
+  gap: 4px;
+  padding-bottom: 10px;
+}
+.aio-tab {
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--aio-transition), color var(--aio-transition);
+}
+.aio-tab:hover {
+  background: var(--aio-hover);
+}
+.aio-tab.is-active {
+  background: var(--aio-primary);
+  color: #fff;
+}
+
+/* ---------- Diff ---------- */
+.aio-diff-line {
+  display: flex;
+  gap: 8px;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+.aio-diff-marker {
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+.aio-diff-add {
+  background: color-mix(in srgb, #16a34a 16%, transparent);
+}
+.aio-diff-add .aio-diff-marker {
+  color: #15803d;
+}
+.aio-diff-remove {
+  background: color-mix(in srgb, #dc2626 14%, transparent);
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+.aio-diff-remove .aio-diff-marker {
+  color: #b91c1c;
+}
+
+/* ============================================================
+   列表
+   ============================================================ */
+.aio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 45vh;
+  overflow: auto;
+}
+.aio-list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--aio-line);
+  border-radius: var(--aio-radius-sm);
+  background: var(--background-primary);
+  transition: border-color var(--aio-transition), background var(--aio-transition);
+}
+.aio-list-row-selectable {
+  cursor: pointer;
+}
+.aio-list-row-selectable:hover {
+  border-color: var(--aio-primary-border);
+  background: var(--aio-primary-soft);
+}
+.aio-list-icon {
+  color: var(--aio-primary);
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.aio-list-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.aio-list-main {
+  flex: 1;
+  min-width: 0;
+}
+.aio-list-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aio-list-sub {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+.aio-list-edit {
+  flex-shrink: 0;
+  width: 46%;
+}
+.aio-checkbox {
+  accent-color: var(--aio-primary);
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.aio-link-chip {
+  background: var(--aio-primary-soft);
+  color: var(--aio-primary-strong);
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-monospace);
+}
+
+/* ============================================================
+   批量处理 / AI 编辑 / 模板
+   ============================================================ */
+.aio-op-selector {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding-bottom: 12px;
+}
+.aio-op-btn {
+  padding: 10px 8px;
+  border: 1px solid var(--aio-line);
+  border-radius: var(--aio-radius);
+  cursor: pointer;
+  text-align: center;
+  transition: all var(--aio-transition);
+}
+.aio-op-btn:hover {
+  border-color: var(--aio-primary-border);
+}
+.aio-op-btn.is-active {
+  border-color: var(--aio-primary);
+  background: var(--aio-primary-soft);
+}
+.aio-op-label {
+  font-weight: 700;
+  font-size: 13px;
+}
+.aio-op-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 13px;
+}
+.aio-op-icon {
+  display: inline-flex;
+  color: var(--aio-primary);
+}
+.aio-op-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.aio-op-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+.aio-edit-preview {
+  min-height: 180px;
+}
+.aio-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.aio-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid var(--aio-primary-soft);
+  border-top-color: var(--aio-primary);
+  border-radius: 50%;
+  animation: aio-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes aio-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.aio-edit-error {
+  padding: 14px;
+  color: var(--text-error);
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+.aio-template-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+.aio-form-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.aio-template-prompt {
+  font-family: var(--font-interface);
+  resize: vertical;
+}
+.aio-batch-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-bottom: 10px;
+}
+.aio-batch-toolbar .aio-input {
+  flex: 1;
+}
+.aio-batch-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 4px 0;
+}
+
+/* ============================================================
+   AI 对话面板（PunditRAG 风格：暖纸 + 墨绿品牌 + 便签圆角）
+   ============================================================ */
+.aio-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(8, 121, 111, 0.10), transparent 22rem),
+    var(--aio-surface-2);
+}
+
+/* ---- 头部 ---- */
+.aio-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--aio-line);
+  background: color-mix(in srgb, var(--aio-surface) 82%, transparent);
+  flex-shrink: 0;
+}
+.aio-chat-header-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.aio-chat-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px 9px 4px 9px; /* 便签式非对称圆角 */
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--aio-primary);
+  color: #fff;
+}
+.aio-chat-logo svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 2.3px;
+}
+.aio-chat-title-block {
+  min-width: 0;
+}
+.aio-chat-title {
+  display: block;
+  color: var(--aio-ink);
+  font-family: Georgia, "Noto Serif SC", var(--font-interface);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.aio-chat-subtitle {
+  display: block;
+  margin-top: 1px;
+  color: var(--aio-muted);
+  font-size: 11.5px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.aio-chat-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ---- 工作台控制区 ---- */
+.aio-chat-controls {
+  overflow: hidden;
+  max-height: 340px;
+  margin: 10px 12px 0;
+  padding: 12px;
+  border: 1px solid var(--aio-line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--aio-surface) 90%, transparent);
+  box-shadow: 0 10px 26px rgba(28, 36, 33, 0.06);
+  flex-shrink: 0;
+  transition: max-height 180ms ease, margin 180ms ease, padding 180ms ease, opacity 160ms ease;
+}
+.aio-chat-controls.is-collapsed {
+  max-height: 0;
+  margin-top: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-width: 0;
+  opacity: 0;
+}
+.aio-chat-ctx {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.aio-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 4px 12px;
+  border: 1px solid var(--aio-line);
+  border-radius: 9px;
+  background: var(--aio-surface);
+  cursor: pointer;
+  user-select: none;
+  transition: all var(--aio-transition);
+}
+.aio-toggle:hover {
+  border-color: var(--aio-primary-border);
+}
+.aio-toggle span {
+  font-weight: 600;
+  color: var(--aio-muted);
+  transition: color var(--aio-transition);
+}
+.aio-toggle.is-on {
+  border-color: var(--aio-primary-border);
+  background: var(--aio-primary-soft);
+}
+.aio-toggle.is-on span {
+  color: var(--aio-primary-strong);
+}
+.aio-toggle input {
+  display: none;
+}
+.aio-chat-ctx-note {
+  min-width: 0;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-left: 1px solid var(--aio-line);
+  padding-left: 8px;
+  color: var(--aio-faint);
+  font-size: 11.5px;
+}
+.aio-chat-tools {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.aio-tool-btn {
+  min-width: 0;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--aio-line);
+  border-radius: 10px;
+  background: var(--aio-surface);
+  color: var(--aio-ink);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background var(--aio-transition), border-color var(--aio-transition), color var(--aio-transition);
+}
+.aio-tool-btn:hover {
+  border-color: var(--aio-primary-border);
+  background: var(--aio-primary-soft);
+  color: var(--aio-primary-strong);
+}
+.aio-tool-btn-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 7px 7px 3px 7px;
+  background: var(--aio-primary);
+  color: #fff;
+}
+.aio-tool-btn-icon svg {
+  width: 14px;
+  height: 14px;
+}
+.aio-tool-btn-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aio-chat-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--aio-line);
+}
+.aio-chat-panel-actions .aio-icon-btn {
+  border: 1px solid var(--aio-line);
+  background: var(--aio-surface);
+}
+
+/* ---- 消息区 ---- */
+.aio-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.aio-msg {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  animation: aio-msg-in 220ms ease;
+}
+@keyframes aio-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.aio-msg-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px 8px 3px 8px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 3px;
+}
+.aio-msg-user .aio-msg-avatar {
+  background: var(--aio-accent);
+  color: #fff;
+}
+.aio-msg-ai .aio-msg-avatar {
+  background: var(--aio-primary);
+  color: #fff;
+}
+.aio-msg-body {
+  flex: 1;
+  min-width: 0;
+}
+.aio-msg-content {
+  padding: 11px 15px;
+  border-radius: 17px;
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+/* 用户：墨绿实心白字，右上小圆角 */
+.aio-msg-user .aio-msg-content {
+  color: #fff;
+  background: var(--aio-primary-strong);
+  border: 1px solid var(--aio-primary-strong);
+  border-radius: 17px 6px 17px 17px;
+}
+/* 助手：暖白卡片 + 左侧品牌色边条 + 柔和投影 */
+.aio-msg-ai .aio-msg-content {
+  background: var(--aio-surface);
+  border: 1px solid var(--aio-line);
+  border-left: 3px solid var(--aio-primary);
+  border-radius: 6px 17px 17px 17px;
+  box-shadow: 0 10px 28px rgba(28, 36, 33, 0.06);
+}
+/* 消息内 Markdown 排版 */
+.aio-msg-content > *:first-child {
+  margin-top: 0;
+}
+.aio-msg-content > *:last-child {
+  margin-bottom: 0;
+}
+.aio-msg-content :is(h1, h2, h3, h4) {
+  margin: 0.7em 0 0.4em;
+  line-height: 1.35;
+}
+.aio-msg-content h1 {
+  font-size: 17px;
+}
+.aio-msg-content h2 {
+  font-size: 15.5px;
+}
+.aio-msg-content h3 {
+  font-size: 14px;
+}
+.aio-msg-content p,
+.aio-msg-content ul,
+.aio-msg-content ol {
+  margin-block: 0.45em;
+}
+
+/* ---- 输入区（卡片式 composer） ---- */
+.aio-chat-input-area {
+  position: relative;
+  margin: 10px 12px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--aio-line);
+  border-radius: 17px;
+  background: var(--aio-surface);
+  box-shadow: 0 14px 36px rgba(28, 36, 33, 0.10);
+  flex-shrink: 0;
+  transition: border-color var(--aio-transition), box-shadow var(--aio-transition);
+}
+.aio-chat-input-area:focus-within {
+  border-color: var(--aio-primary-border);
+  box-shadow: 0 14px 36px rgba(28, 36, 33, 0.10), 0 0 0 2px var(--aio-primary-soft);
+}
+.aio-input-context {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 46px 6px 2px;
+}
+.aio-context-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid var(--aio-line);
+  border-radius: 8px;
+  background: var(--aio-surface-2);
+  color: var(--aio-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+.aio-context-ring {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--aio-line);
+  border-radius: 999px;
+  flex-shrink: 0;
+  transition: border-color var(--aio-transition), background var(--aio-transition);
+}
+.aio-context-chip.is-active .aio-context-ring {
+  border-color: var(--aio-primary);
+  background: var(--aio-primary);
+  box-shadow: inset 0 0 0 2px var(--aio-surface);
+}
+.aio-context-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aio-chat-input-wrap {
+  position: relative;
+  display: block;
+}
+.aio-context-meter {
+  --aio-context-percent: 0%;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at center, var(--aio-surface) 56%, transparent 58%),
+    conic-gradient(var(--aio-primary) var(--aio-context-percent), #e4dfd3 0);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) inset, 0 4px 14px rgba(39, 49, 44, 0.08);
+  color: var(--aio-primary-strong);
+  pointer-events: auto;
+}
+.aio-context-meter.is-warn {
+  background:
+    radial-gradient(circle at center, var(--aio-surface) 56%, transparent 58%),
+    conic-gradient(var(--aio-accent) var(--aio-context-percent), #e4dfd3 0);
+  color: var(--aio-accent-strong);
+}
+.aio-context-meter.is-danger {
+  background:
+    radial-gradient(circle at center, var(--aio-surface) 56%, transparent 58%),
+    conic-gradient(#bd4d3b var(--aio-context-percent), #e4dfd3 0);
+  color: #9f3f31;
+}
+.aio-context-meter-value {
+  font-size: 9px;
+  font-weight: 850;
+  line-height: 1;
+}
+.aio-chat-input {
+  width: 100%;
+  min-height: 60px;
+  max-height: 160px;
+  padding: 6px 2px;
+  border: 0;
+  background: transparent;
+  resize: none;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--aio-ink);
+  box-shadow: none;
+}
+.aio-chat-input:focus {
+  border: 0;
+  box-shadow: none;
+}
+.aio-chat-input::placeholder {
+  color: var(--aio-faint);
+}
+.aio-input-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 6px;
+}
+.aio-model-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: calc(100% - 50px);
+  color: var(--aio-muted);
+}
+.aio-model-picker-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--aio-primary);
+}
+.aio-model-picker-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.aio-model-select {
+  max-width: 180px;
+  min-height: 30px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--aio-muted);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.aio-model-select:hover {
+  background: var(--aio-hover);
+  color: var(--aio-ink);
+}
+.aio-send-btn,
+.aio-stop-btn {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--aio-transition), transform var(--aio-transition);
+}
+.aio-send-btn {
+  background: var(--aio-primary-strong);
+  color: #fff;
+}
+.aio-send-btn:hover {
+  background: var(--aio-primary);
+}
+.aio-stop-btn {
+  background: var(--aio-accent);
+  color: #fff;
+}
+.aio-stop-btn:hover {
+  background: var(--aio-accent-strong);
+}
+.aio-send-btn:active,
+.aio-stop-btn:active {
+  transform: scale(0.94);
+}
+.aio-send-btn svg,
+.aio-stop-btn svg {
+  width: 17px;
+  height: 17px;
+}
+.is-hidden {
+  display: none !important;
+}
+
+/* ---- 打字指示器 ---- */
+.aio-typing {
+  display: inline-flex;
+  gap: 5px;
+  padding: 11px 15px;
+  background: var(--aio-surface);
+  border: 1px solid var(--aio-line);
+  border-left: 3px solid var(--aio-primary);
+  border-radius: 6px 17px 17px 17px;
+}
+.aio-typing-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--aio-primary);
+  opacity: 0.4;
+  animation: aio-blink 1.2s infinite;
+}
+.aio-typing-dot:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.aio-typing-dot:nth-child(3) {
+  animation-delay: 0.36s;
+}
+@keyframes aio-blink {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* ============================================================
+   设置页（回归 Obsidian 原生样式）
+   ============================================================ */
+/* 容器不做任何定制，直接使用 Obsidian 原生设置样式 */
+
+/* 顶部 Hero 已从设置页代码中移除，隐藏以防残留 */
+.aio-settings-hero {
+  display: none;
+}
+
+/* 分区容器：透明，不画卡片 */
+.aio-settings-section {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+.aio-settings-section-primary {
+  border: 0;
+  box-shadow: none;
+}
+
+/* 分区头：接近 Obsidian 原生 setHeading 的效果 */
+.aio-settings-section-header {
+  display: block;
+  padding: 16px 0 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.aio-settings-section-icon {
+  display: none;
+}
+.aio-settings-section-title {
+  margin: 0;
+  color: var(--text-normal);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.aio-settings-section-desc {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12.8px;
+  line-height: 1.5;
+}
+
+/* 分区内设置行与输入控件：完全交给 Obsidian 默认样式，不再自定义 */
+
+/* ============================================================
+   无障碍：减少动态效果
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .aio-msg,
+  .aio-chat-empty,
+  .aio-typing-dot,
+  .aio-spinner {
+    animation: none !important;
+  }
+  .aio-btn,
+  .aio-toggle,
+  .aio-icon-btn,
+  .aio-tool-btn,
+  .aio-model-profile-btn {
+    transition: none !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .aio-chat-tools {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .aio-model-select {
+    max-width: 140px;
+  }
+}
+
+/* ============================================================
+   选中文本快捷工具栏 + 编辑撤回（Copilot 风格浮条）
+   ============================================================ */
+.aio-selection-toolbar {
+  position: fixed;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px;
+  max-width: min(480px, calc(100vw - 16px));
+  border: 1px solid color-mix(in srgb, #ffffff 14%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, #1c2421 94%, var(--background-primary));
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.35);
+  color: #f5f5f5;
+}
+.aio-selection-toolbar.is-visible {
+  display: inline-flex;
+}
+.aio-selection-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #e8e8e8;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--aio-transition), color var(--aio-transition);
+}
+.aio-selection-action:hover {
+  background: color-mix(in srgb, #ffffff 14%, transparent);
+  color: #ffffff;
+}
+.aio-selection-action-icon {
+  display: inline-flex;
+  color: #9ee8cf; /* 品牌浅绿 */
+}
+.aio-selection-action-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.3px;
+}
+
+/* ---- 编辑撤回浮条（高亮修改后可一键撤回） ---- */
+.aio-edit-undo {
+  position: fixed;
+  z-index: 1001;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid var(--aio-primary-border);
+  border-radius: 10px;
+  background: var(--background-primary);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.22);
+  color: var(--text-normal);
+}
+.aio-edit-undo.is-visible {
+  display: inline-flex;
+}
+.aio-edit-undo-icon {
+  display: inline-flex;
+  color: #16a34a;
+}
+.aio-edit-undo-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.5px;
+}
+.aio-edit-undo-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.aio-edit-undo-btn {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--aio-line);
+  border-radius: 7px;
+  background: var(--background-primary);
+  color: var(--aio-primary-strong);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--aio-transition), border-color var(--aio-transition);
+}
+.aio-edit-undo-btn:hover {
+  background: var(--aio-primary-soft);
+  border-color: var(--aio-primary-border);
+}
+
+/* ============================================================
+   Selection quick actions + final chat polish
+   ============================================================ */
+.aio-selection-toolbar {
+  position: fixed;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 5px;
+  max-width: min(420px, calc(100vw - 16px));
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-primary);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  color: var(--text-normal);
+}
+.aio-selection-toolbar.is-visible {
+  display: inline-flex;
+}
+.aio-selection-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-normal);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.aio-selection-action:hover {
+  border-color: var(--background-modifier-border);
+  background: var(--background-modifier-hover);
+}
+.aio-selection-action-icon {
+  display: inline-flex;
+  color: var(--text-accent);
+}
+.aio-selection-action-icon svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2.35px;
+}
+
+.aio-chat {
+  --aio-primary: var(--interactive-accent);
+  --aio-primary-strong: var(--text-accent);
+  --aio-primary-soft: color-mix(in srgb, var(--interactive-accent) 9%, var(--background-primary));
+  --aio-primary-border: color-mix(in srgb, var(--interactive-accent) 32%, var(--background-modifier-border));
+}
+.aio-chat-header {
+  padding: 9px 11px;
+  background: color-mix(in srgb, var(--background-secondary) 55%, var(--background-primary));
+}
+.aio-chat-logo,
+.aio-tool-btn-icon,
+.aio-model-picker-icon {
+  color: var(--text-accent);
+}
+.aio-chat-controls {
+  margin: 8px 10px 0;
+  border-radius: 8px;
+}
+.aio-chat-messages {
+  padding: 12px 10px;
+  gap: 10px;
+}
+.aio-msg {
+  gap: 8px;
+}
+.aio-msg-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 10px;
+}
+.aio-msg-ai .aio-msg-avatar {
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-accent);
+}
+.aio-msg-user .aio-msg-avatar {
+  background: var(--aio-primary-soft);
+  border: 1px solid var(--aio-primary-border);
+  color: var(--text-accent);
+}
+.aio-msg-content {
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13.2px;
+  line-height: 1.62;
+}
+.aio-msg-ai .aio-msg-content {
+  background: transparent;
+  border-color: transparent;
+}
+.aio-msg-user .aio-msg-content {
+  background: var(--aio-primary-soft);
+}
+.aio-msg-content :is(h1, h2, h3, h4) {
+  margin: 0.65em 0 0.38em;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+.aio-msg-content h1 {
+  font-size: 18px;
+}
+.aio-msg-content h2 {
+  font-size: 16px;
+}
+.aio-msg-content h3 {
+  font-size: 14.5px;
+}
+.aio-msg-content p,
+.aio-msg-content ul,
+.aio-msg-content ol {
+  margin-block: 0.45em;
+}
+.aio-msg-content code {
+  font-size: 0.92em;
+}
+.aio-chat-input-area {
+  margin: 8px 10px 10px;
+  padding: 7px 8px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--background-secondary) 72%, var(--background-primary));
+}
+.aio-input-context {
+  padding-bottom: 5px;
+}
+.aio-context-chip {
+  border-radius: 6px;
+  color: var(--text-normal);
+}
+.aio-context-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.aio-context-clear:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+.aio-context-clear svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.5px;
+}
+.aio-context-ring {
+  display: none;
+}
+.aio-context-chip.is-active {
+  border-color: var(--aio-primary-border);
+  background: var(--aio-primary-soft);
+}
+.aio-chat-input {
+  min-height: 58px;
+  padding: 5px 2px;
+}
+.aio-model-picker.is-empty .aio-model-picker-icon {
+  display: none;
+}
+.aio-model-select {
+  max-width: 210px;
+  padding: 0 7px;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   Final style direction
+   Settings: Obsidian native
+   Chat / selected-text tools: PunditRAG paper + ink-green
+   ============================================================ */
+
+.aio-settings {
+  --aio-primary: var(--interactive-accent);
+  --aio-primary-strong: var(--text-accent);
+  --aio-primary-soft: var(--background-modifier-hover);
+  --aio-primary-border: var(--background-modifier-border);
+  --aio-accent: var(--text-warning);
+  --aio-accent-strong: var(--text-warning);
+  --aio-accent-soft: var(--background-modifier-hover);
+  --aio-ink: var(--text-normal);
+  --aio-muted: var(--text-muted);
+  --aio-surface: var(--background-primary);
+  --aio-surface-2: var(--background-secondary);
+  --aio-line: var(--background-modifier-border);
+}
+.aio-settings {
+  max-width: var(--file-line-width, 900px);
+  padding: 0 0 48px;
+}
+.aio-settings-section {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.aio-settings-section-header {
+  display: block;
+  padding: 18px 0 8px;
+  margin: 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: transparent;
+}
+.aio-settings-section-icon {
+  display: none;
+}
+.aio-settings-section-title {
+  color: var(--text-normal);
+  font-size: var(--font-ui-large);
+  font-weight: 700;
+}
+.aio-settings-section-desc {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.aio-model-config-bar,
+.aio-model-profile-card {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-primary);
+  box-shadow: none;
+}
+.aio-model-config-bar {
+  margin: 12px 0;
+  padding: 12px;
+}
+.aio-model-add-btn,
+.aio-model-profile-btn {
+  border-radius: var(--radius-s);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+}
+.aio-model-add-btn:hover,
+.aio-model-profile-btn:hover {
+  background: var(--interactive-hover);
+  color: var(--text-normal);
+}
+.aio-model-profile-card.is-active {
+  border-left-color: var(--interactive-accent);
+}
+.aio-model-profile-card.is-incomplete {
+  border-left-color: var(--text-warning);
+}
+.aio-model-profile-head {
+  background: var(--background-secondary);
+}
+
+.aio-chat {
+  --aio-paper: #f3f0e8;
+  --aio-surface: #fffdf8;
+  --aio-ink: #1c2421;
+  --aio-muted: #78817c;
+  --aio-line: #ddd9ce;
+  --aio-primary: #08796f;
+  --aio-primary-strong: #075d56;
+  --aio-primary-soft: #dcece7;
+  --aio-primary-border: rgba(8, 121, 111, 0.32);
+  --aio-accent: #e98b52;
+  --aio-accent-strong: #c96f3a;
+  --aio-hover: #ebe8df;
+  color: var(--aio-ink);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(8, 121, 111, 0.10), transparent 20rem),
+    var(--aio-paper);
+}
+.aio-chat-header {
+  background: rgba(255, 253, 248, 0.82);
+  border-bottom-color: var(--aio-line);
+}
+.aio-chat-logo {
+  color: #fff;
+  background: var(--aio-ink);
+  border-radius: 10px 10px 4px 10px;
+}
+.aio-chat-title {
+  color: var(--aio-ink);
+  font-family: Georgia, "Noto Serif SC", var(--font-interface);
+}
+.aio-chat-subtitle,
+.aio-icon-btn,
+.aio-model-select,
+.aio-model-picker {
+  color: var(--aio-muted);
+}
+.aio-chat-controls {
+  border-color: var(--aio-line);
+  border-radius: 15px;
+  background: rgba(255, 253, 248, 0.90);
+  box-shadow: 0 10px 26px rgba(39, 49, 44, 0.07);
+}
+.aio-workbench-head {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--aio-line);
+}
+.aio-workbench-title {
+  color: var(--aio-ink);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.aio-workbench-desc {
+  margin-top: 3px;
+  color: var(--aio-muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.aio-toggle,
+.aio-tool-btn,
+.aio-chat-panel-actions .aio-icon-btn,
+.aio-context-chip,
+.aio-chat-input-area {
+  border-color: var(--aio-line);
+  background: var(--aio-surface);
+}
+.aio-toggle.is-on,
+.aio-tool-btn:hover,
+.aio-context-chip.is-active {
+  border-color: var(--aio-primary-border);
+  background: var(--aio-primary-soft);
+  color: var(--aio-primary-strong);
+}
+.aio-tool-btn-icon {
+  color: #fff;
+  background: var(--aio-primary);
+  border-radius: 7px 7px 3px 7px;
+}
+.aio-chat-input-area {
+  border-radius: 17px;
+  box-shadow: 0 16px 40px rgba(39, 49, 44, 0.10);
+}
+.aio-chat-input-area:focus-within {
+  border-color: var(--aio-primary);
+  box-shadow: 0 16px 40px rgba(39, 49, 44, 0.10), 0 0 0 3px rgba(8, 121, 111, 0.12);
+}
+.aio-chat-input {
+  color: var(--aio-ink);
+}
+.aio-send-btn {
+  background: var(--aio-ink);
+  color: #fff;
+  border-radius: 13px;
+}
+.aio-send-btn:hover {
+  background: var(--aio-primary-strong);
+}
+.aio-msg-user .aio-msg-avatar {
+  color: #fff;
+  background: var(--aio-accent);
+  border: 0;
+}
+.aio-msg-ai .aio-msg-avatar {
+  color: #fff;
+  background: var(--aio-primary);
+  border: 0;
+}
+.aio-msg-user .aio-msg-content {
+  color: #fff;
+  background: var(--aio-primary-strong);
+  border-color: var(--aio-primary-strong);
+  border-radius: 16px 5px 16px 16px;
+}
+.aio-msg-ai .aio-msg-content {
+  background: var(--aio-surface);
+  border: 1px solid var(--aio-line);
+  border-left: 3px solid var(--aio-primary);
+  border-radius: 5px 16px 16px 16px;
+  box-shadow: 0 10px 30px rgba(39, 49, 44, 0.055);
+}
+
+.aio-selection-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  max-width: min(680px, calc(100vw - 16px));
+  padding: 6px;
+  border: 1px solid #d8d2c5;
+  border-radius: 12px;
+  background: #fffdf8;
+  color: #1c2421;
+  box-shadow: 0 10px 28px rgba(39, 49, 44, 0.16), 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+}
+.aio-selection-origin {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  color: #64706a;
+  border-right: 1px solid #e6e0d4;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.aio-selection-action {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #28312d;
+  background: transparent;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1;
+}
+.aio-selection-action:hover {
+  border-color: rgba(8, 121, 111, 0.26);
+  color: #075d56;
+  background: #edf5f1;
+}
+.aio-selection-action-icon {
+  color: #50bda8;
+}
+.aio-selection-action-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.aio-selection-lang {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px 0 8px;
+  border-right: 1px solid #e6e0d4;
+  white-space: nowrap;
+}
+
+.aio-selection-lang-label {
+  color: #64706a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.aio-selection-lang-select {
+  max-width: 92px;
+  min-height: 28px;
+  padding: 0 22px 0 8px;
+  border: 1px solid rgba(8, 121, 111, 0.34);
+  border-radius: 8px;
+  background: #edf5f1;
+  color: #075d56;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.aio-selection-lang-select:hover,
+.aio-selection-lang-select:focus {
+  border-color: #08796f;
+  background: #e3f0eb;
+  outline: none;
+}
+
+.aio-selection-lang-select option {
+  color: #1c2421;
+  background: #fffdf8;
+}
+.aio-selection-close {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #78817c;
+  font-size: 18px;
+  font-weight: 850;
+  line-height: 1;
+  cursor: pointer;
+}
+.aio-selection-close:hover {
+  border-color: rgba(189, 77, 59, 0.26);
+  background: #f7e5e1;
+  color: #9f3f31;
+}
+
+.aio-translation-popover {
+  position: fixed;
+  z-index: 1002;
+  display: none;
+  width: min(360px, calc(100vw - 20px));
+  max-height: calc(100vh - 20px);
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid #ddd9ce;
+  border-radius: 15px;
+  background: #fffdf8;
+  color: #1c2421;
+  box-shadow: 0 18px 46px rgba(39, 49, 44, 0.20);
+}
+.aio-translation-popover.is-visible {
+  display: block;
+}
+.aio-translation-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ddd9ce;
+}
+.aio-translation-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #075d56;
+  font-size: 12px;
+  font-weight: 800;
+}
+.aio-translation-title-icon {
+  display: inline-flex;
+}
+.aio-translation-title-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.aio-translation-lang {
+  min-height: 26px;
+  margin-left: 4px;
+  padding: 2px 7px;
+  border: 1px solid #ddd9ce;
+  border-radius: 8px;
+  background: #fffdf8;
+  color: #1c2421;
+  font-size: 11px;
+  font-weight: 700;
+}
+.aio-translation-icon-btn {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #78817c;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.aio-translation-icon-btn:hover {
+  background: #ebe8df;
+  color: #1c2421;
+}
+.aio-translation-loading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 14px 2px 5px;
+  color: #78817c;
+  font-size: 12px;
+}
+.aio-translation-body {
+  max-height: 220px;
+  overflow: auto;
+  margin-top: 10px;
+  padding: 10px 11px;
+  border: 1px solid #ddd9ce;
+  border-radius: 11px;
+  background: #f7f5ef;
+  color: #28312d;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+.aio-translation-thought {
+  margin-top: 10px;
+}
+.aio-annotation-existing {
+  margin-top: 10px;
+  padding: 8px 9px;
+  border: 1px solid #ddd9ce;
+  border-radius: 10px;
+  background: #f7f5ef;
+}
+.aio-annotation-existing-title {
+  color: #075d56;
+  font-size: 11px;
+  font-weight: 800;
+}
+.aio-annotation-existing-item {
+  margin-top: 6px;
+  color: #56615c;
+  font-size: 12px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.aio-translation-thought-label {
+  margin-bottom: 5px;
+  color: #78817c;
+  font-size: 11px;
+  font-weight: 800;
+}
+.aio-translation-thought-input {
+  width: 100%;
+  min-height: 62px;
+  max-height: min(210px, calc(100vh - 220px));
+  padding: 9px 10px;
+  border: 1px solid #ddd9ce;
+  border-radius: 10px;
+  background: #fffefa;
+  color: #1c2421;
+  font-size: 12.5px;
+  line-height: 1.55;
+  resize: vertical;
+}
+.aio-translation-thought-input:focus {
+  border-color: #08796f;
+  box-shadow: 0 0 0 3px rgba(8, 121, 111, 0.12);
+  outline: none;
+}
+.aio-translation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 10px;
+}
+.aio-translation-action {
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid #ddd9ce;
+  border-radius: 9px;
+  background: #fffdf8;
+  color: #1c2421;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.aio-translation-action:hover {
+  border-color: #08796f;
+  background: #dcece7;
+}
+.aio-translation-action.is-primary {
+  color: #fff;
+  border-color: #075d56;
+  background: #075d56;
+}
+.aio-translation-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.aio-translation-error {
+  margin: 10px 0;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: #f7e5e1;
+  color: #bd4d3b;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.aio-chat-close-btn:hover {
+  border-color: rgba(189, 77, 59, 0.36);
+  background: #f7e5e1;
+  color: #9f3f31;
+}
+
+.aio-annotation-highlight {
+  background: rgba(233, 139, 82, 0.16);
+  border-bottom: 2px solid rgba(233, 139, 82, 0.62);
+  border-radius: 2px;
+}
+
+.aio-annotation-marker {
+  position: relative;
+  width: 15px;
+  height: 15px;
+  margin: 0 2px;
+  padding: 0;
+  vertical-align: super;
+  border: 1px solid rgba(7, 93, 86, 0.42);
+  border-radius: 999px;
+  background: #fffdf8;
+  color: #075d56;
+  box-shadow: 0 1px 0 rgba(28, 36, 33, 0.08), 0 0 0 3px rgba(8, 121, 111, 0.08);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 13px;
+  cursor: pointer;
+}
+
+.aio-annotation-marker::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: inherit;
+  background: #e98b52;
+}
+
+.aio-annotation-marker:not(:empty)::before {
+  display: none;
+}
+
+.aio-annotation-marker:hover {
+  border-color: #075d56;
+  background: #dcece7;
+  transform: translateY(-1px);
+}
+
+.aio-annotation-quote {
+  max-height: 96px;
+  overflow: auto;
+  margin-top: 10px;
+  padding: 9px 10px;
+  border-left: 3px solid #e98b52;
+  border-radius: 8px;
+  background: #f7f5ef;
+  color: #28312d;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.aio-annotation-thread,
+.aio-annotation-panel-list {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  margin-top: 10px;
+  padding-right: 2px;
+}
+
+.aio-annotation-result {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid #ddd9ce;
+  border-radius: 10px;
+  background: #f7f5ef;
+}
+
+.aio-annotation-card,
+.aio-annotation-panel-item {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid #ddd9ce;
+  border-radius: 10px;
+  background: #fffefa;
+  color: #1c2421;
+  text-align: left;
+}
+
+.aio-annotation-panel-item {
+  cursor: pointer;
+}
+
+.aio-annotation-panel-item:hover {
+  border-color: rgba(8, 121, 111, 0.45);
+  background: #f7f5ef;
+}
+
+.aio-annotation-card-head,
+.aio-annotation-panel-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.aio-annotation-kind {
+  color: #075d56;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.aio-annotation-time {
+  color: #78817c;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.aio-annotation-body,
+.aio-annotation-thought-body,
+.aio-annotation-panel-body {
+  color: #28312d;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.aio-annotation-thought-body {
+  margin-top: 6px;
+  color: #4e5853;
+}
+
+.aio-annotation-composer {
+  margin-top: 10px;
+}
+
+.aio-annotation-panel-quote {
+  color: #28312d;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.aio-annotation-panel-body {
+  margin-top: 5px;
+  color: #69736e;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.aio-annotation-empty {
+  margin-top: 10px;
+  padding: 14px 12px;
+  border: 1px dashed #ddd9ce;
+  border-radius: 11px;
+  background: #f7f5ef;
+}
+
+.aio-annotation-empty-title {
+  color: #1c2421;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.aio-annotation-empty-desc {
+  margin-top: 4px;
+  color: #78817c;
+  font-size: 12px;
+  line-height: 1.5;
+}

@@ -1,0 +1,25 @@
+node_modules/
+main.js
+*.map
+.DS_Store
+
+# Local editor / agent history
+.history/
+.idea/
+.vscode/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and local caches
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.cache/
+.codegraph/
+.pytest_cache/
+__pycache__/

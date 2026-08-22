@@ -1,0 +1,28 @@
+{
+  "name": "obsidian-ai-organizer",
+  "version": "0.1.0",
+  "description": "All-in-one AI plugin for Obsidian: smart note formatting, image organization, multi-model chat, AI metadata, inbox auto-sort and more.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "ai",
+    "chatgpt",
+    "formatting",
+    "attachment"
+  ],
+  "author": "YourName",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^16.11.6",
+    "builtin-modules": "3.3.0",
+    "esbuild": "0.17.3",
+    "obsidian": "latest",
+    "tslib": "2.4.0",
+    "typescript": "^5.4.0"
+  }
+}
