@@ -7,8 +7,9 @@ export type DiffOp = { type: "equal" | "add" | "remove"; text: string };
 
 /** 基于 LCS 的行级 diff */
 export function diffLines(oldText: string, newText: string): DiffOp[] {
-  const a = oldText.split("\n");
-  const b = newText.split("\n");
+  // 空字符串视为无行（"" .split("\n") 会产生一个空行，需特判）
+  const a = oldText === "" ? [] : oldText.split("\n");
+  const b = newText === "" ? [] : newText.split("\n");
   const n = a.length;
   const m = b.length;
 

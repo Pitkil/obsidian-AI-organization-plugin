@@ -1,4 +1,6 @@
 import { Editor, EditorPosition, MarkdownView, Notice, Plugin, TFile, setIcon } from "obsidian";
+import { computeQuoteAnchor, findBestPartialMatch, posFromOffset, resolveQuoteRange } from "./utils/position";
+import { capScrollPositions, selectionSignature } from "./utils";
 import { StateEffect } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
@@ -48,20 +50,27 @@ const annotationRefreshEffect = StateEffect.define<void>();
 class AnnotationMarkerWidget extends WidgetType {
   constructor(
     private readonly plugin: AIOrganizerPlugin,
-    private readonly annotations: AIOAnnotation[]
+    private readonly annotations: AIOAnnotation[],
+    private readonly lost = false
   ) {
     super();
   }
 
   eq(other: AnnotationMarkerWidget): boolean {
-    return this.annotations.map((item) => item.id).join("|") === other.annotations.map((item) => item.id).join("|");
+    return (
+      this.annotations.map((item) => item.id).join("|") ===
+        other.annotations.map((item) => item.id).join("|") &&
+      this.lost === other.lost
+    );
   }
 
   toDOM(): HTMLElement {
     const marker = document.createElement("button");
     marker.type = "button";
-    marker.className = "aio-annotation-marker";
-    marker.title = `便签 ${this.annotations.length} 条`;
+    marker.className = this.lost ? "aio-annotation-marker is-lost" : "aio-annotation-marker";
+    marker.title = this.lost
+      ? "便签位置已失效（原文被修改），点击查看详情"
+      : `便签 ${this.annotations.length} 条`;
     marker.setAttribute("aria-label", marker.title);
     marker.textContent = this.annotations.length > 1 ? String(this.annotations.length) : "";
     marker.addEventListener("mousedown", (evt) => evt.preventDefault());
@@ -95,11 +104,21 @@ export default class AIOrganizerPlugin extends Plugin {
   private selectionSnapshot: AIOSelectionSnapshot | null = null;
   private editUndoPillEl: HTMLElement | null = null;
   private editUndoTimer: number | null = null;
+  private notePositions = new Map<string, { top: number; line: number; ch: number }>();
+  private scrollEl: HTMLElement | null = null;
+  private scrollHandler: (() => void) | null = null;
+  private scrollSaveTimer: number | null = null;
   private formattingInProgress = false;
   private selectionToolbarSuppressedUntil = 0;
+  private selectionToolbarClosedSignature: string | null = null;
+  private annotationPruneTimer: number | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    // 从磁盘恢复上次会话记录的浏览位置（跨重启持久化）
+    this.notePositions = new Map(
+      Object.entries(this.settings.scrollRestore.positions ?? {})
+    );
     this.providers = createProviders(() => this.settings);
 
     // 初始化服务
@@ -127,6 +146,7 @@ export default class AIOrganizerPlugin extends Plugin {
     this.registerCommands();
     this.registerSelectionToolbar();
     this.registerEditorExtension(this.annotationExtension());
+    this.registerScrollRestore();
     this.addSettingTab(new AIOrganizerSettingTab(this.app, this));
 
     // 排版前校验配置（温和提示）
@@ -141,6 +161,12 @@ export default class AIOrganizerPlugin extends Plugin {
     this.translationPopupEl?.remove();
     this.translationPopupEl = null;
     this.hideEditUndoPill();
+    // 卸载前把浏览位置落盘，确保最后位置不丢
+    if (this.scrollSaveTimer) {
+      window.clearTimeout(this.scrollSaveTimer);
+      this.scrollSaveTimer = null;
+    }
+    void this.saveSettings();
     // 清理视图
     this.app.workspace.detachLeavesOfType(CHAT_VIEW_TYPE);
   }
@@ -166,6 +192,12 @@ export default class AIOrganizerPlugin extends Plugin {
       id: "open-settings",
       name: "打开 AI Organizer 设置",
       callback: () => app.openSettings(),
+    });
+
+    this.addCommand({
+      id: "restore-last-scroll-position",
+      name: "回到上次浏览位置",
+      callback: () => app.restoreCurrentScrollPosition(true),
     });
 
     this.addCommand({
@@ -254,6 +286,12 @@ export default class AIOrganizerPlugin extends Plugin {
         ).open();
       },
     });
+
+    this.addCommand({
+      id: "export-annotations-to-note",
+      name: "导出当前笔记便签为笔记",
+      callback: () => app.exportAnnotationsToNote(),
+    });
   }
 
   // ---------------- 功能入口 ----------------
@@ -293,7 +331,7 @@ export default class AIOrganizerPlugin extends Plugin {
     this.registerDomEvent(document, "mouseup", scheduleUpdate);
     this.registerDomEvent(document, "keyup", (evt: KeyboardEvent) => {
       if (evt.key === "Escape") {
-        this.hideSelectionToolbar();
+        this.closeSelectionToolbar();
         this.hideTranslationPopup();
         return;
       }
@@ -323,10 +361,12 @@ export default class AIOrganizerPlugin extends Plugin {
       return;
     }
     const active = document.activeElement;
-    if (
-      active instanceof HTMLElement &&
-      (this.selectionToolbarEl?.contains(active) || this.translationPopupEl?.contains(active))
-    ) {
+    if (active instanceof HTMLElement && this.translationPopupEl?.contains(active)) {
+      // 焦点在便签/翻译弹窗内时，不展示选中工具栏
+      this.selectionToolbarEl?.removeClass("is-visible");
+      return;
+    }
+    if (active instanceof HTMLElement && this.selectionToolbarEl?.contains(active)) {
       return;
     }
     const activeInEditor = active instanceof HTMLElement && !!active.closest(".cm-editor, .markdown-source-view");
@@ -351,11 +391,21 @@ export default class AIOrganizerPlugin extends Plugin {
       return;
     }
 
+    // 手动关闭后，同一个选区不再自动弹出
+    const from = mdView.editor.getCursor("from");
+    const to = mdView.editor.getCursor("to");
+    const signature = selectionSignature(file.path, from, to, selected);
+    if (this.selectionToolbarClosedSignature === signature) {
+      this.selectionToolbarEl?.removeClass("is-visible");
+      return;
+    }
+    this.selectionToolbarClosedSignature = null;
+
     this.selectionSnapshot = {
       text: selected,
       filePath: file.path,
-      from: mdView.editor.getCursor("from"),
-      to: mdView.editor.getCursor("to"),
+      from,
+      to,
       createdAt: Date.now(),
     };
 
@@ -416,7 +466,8 @@ export default class AIOrganizerPlugin extends Plugin {
       attr: { type: "button", title: "关闭", "aria-label": "关闭选中文本工具栏" },
     });
     closeBtn.setText("×");
-    closeBtn.addEventListener("click", () => this.hideSelectionToolbar());
+    closeBtn.addEventListener("mousedown", (evt) => this.closeSelectionToolbar(evt));
+    closeBtn.addEventListener("click", (evt) => this.closeSelectionToolbar(evt));
 
     this.selectionToolbarEl = toolbar;
     return toolbar;
@@ -488,6 +539,27 @@ export default class AIOrganizerPlugin extends Plugin {
     this.selectionToolbarEl?.removeClass("is-visible");
   }
 
+  /** 手动关闭工具栏：记录当前选区，直到选区变化前不再自动弹出 */
+  private closeSelectionToolbar(evt?: Event): void {
+    evt?.preventDefault();
+    evt?.stopPropagation();
+    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (mdView?.editor) {
+      const from = mdView.editor.getCursor("from");
+      const to = mdView.editor.getCursor("to");
+      const text = mdView.editor.getSelection();
+      this.selectionToolbarClosedSignature = selectionSignature(
+        mdView.file?.path ?? "",
+        from,
+        to,
+        text
+      );
+    }
+    this.selectionSnapshot = null;
+    this.selectionToolbarSuppressedUntil = Date.now() + 2000;
+    this.selectionToolbarEl?.removeClass("is-visible");
+  }
+
   private async askSelectionInChat(snapshot: AIOSelectionSnapshot): Promise<void> {
     await this.activateChatView();
     const leaf = this.app.workspace.getLeavesOfType(CHAT_VIEW_TYPE)[0];
@@ -538,6 +610,8 @@ export default class AIOrganizerPlugin extends Plugin {
     const newTo = this.positionAfterText(from, result);
     // 高亮：把修改后的内容保持为选中状态（使用主题选中高亮）
     editor.setSelection(from, newTo);
+    // 高亮期间不让选中工具栏弹出，避免“关不掉”的感觉
+    this.selectionToolbarSuppressedUntil = Date.now() + 1800;
     this.showEditUndoPill(editor, from, newTo);
     new Notice(`${label}（可撤回）`);
     // 短暂高亮后收拢光标，避免后续输入误覆盖
@@ -597,6 +671,149 @@ export default class AIOrganizerPlugin extends Plugin {
       window.clearTimeout(this.editUndoTimer);
       this.editUndoTimer = null;
     }
+  }
+
+  // ---------------- 浏览位置记忆 ----------------
+
+  /** 记录当前笔记的滚动位置与光标行（滚动/输入时调用），并防抖持久化 */
+  private savePosition(file: TFile, editor: Editor): void {
+    try {
+      const info = editor.getScrollInfo();
+      const cursor = editor.getCursor();
+      const pos = { top: info.top, line: cursor.line, ch: cursor.ch };
+      this.notePositions.set(file.path, pos);
+      // 同步到 settings（防抖写盘），实现跨重启恢复；delete+set 把最近访问排到末尾
+      const positions = this.settings.scrollRestore.positions;
+      if (positions[file.path]) delete positions[file.path];
+      positions[file.path] = pos;
+      this.scheduleScrollPositionSave();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** 防抖把浏览位置写盘（滚动很频繁，不能每次都 saveSettings） */
+  private scheduleScrollPositionSave(): void {
+    if (this.scrollSaveTimer) window.clearTimeout(this.scrollSaveTimer);
+    this.scrollSaveTimer = window.setTimeout(() => {
+      this.scrollSaveTimer = null;
+      this.settings.scrollRestore.positions = capScrollPositions(
+        this.settings.scrollRestore.positions,
+        1000
+      );
+      void this.saveSettings();
+    }, 800);
+  }
+
+  /** 把滚动监听器挂到当前笔记的编辑器滚动容器上 */
+  private attachScrollListener(): void {
+    if (this.scrollEl && this.scrollHandler) {
+      this.scrollEl.removeEventListener("scroll", this.scrollHandler);
+    }
+    this.scrollEl = null;
+    this.scrollHandler = null;
+    if (this.annotationPruneTimer) {
+      window.clearTimeout(this.annotationPruneTimer);
+      this.annotationPruneTimer = null;
+    }
+
+    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!mdView || !(mdView.file instanceof TFile)) return;
+    const file = mdView.file;
+    const editor = mdView.editor;
+    if (!editor) return;
+    const scroller = mdView.contentEl.querySelector<HTMLElement>(".cm-scroller");
+    if (!scroller) return;
+    this.scrollEl = scroller;
+    this.scrollHandler = () => {
+      if (this.settings.scrollRestore.enabled) {
+        this.savePosition(file, editor);
+      }
+    };
+    scroller.addEventListener("scroll", this.scrollHandler, { passive: true });
+  }
+
+  /** 打开笔记时恢复到上次的滚动位置与光标行 */
+  private restoreScrollFor(file: TFile, force = false): boolean {
+    if (!force && !this.settings.scrollRestore.enabled) return false;
+    const saved = this.notePositions.get(file.path);
+    if (!saved) return false;
+    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!mdView || mdView.file?.path !== file.path || !mdView.editor) return false;
+    const editor = mdView.editor;
+    try {
+      if (typeof saved.line === "number") {
+        editor.setCursor({ line: saved.line, ch: saved.ch ?? 0 });
+      }
+      if (typeof saved.top === "number") {
+        // 先恢复光标，再强制滚动到上次位置（滚动优先）
+        editor.scrollTo(null, saved.top);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private restoreCurrentScrollPosition(showNotice = false): void {
+    const file = this.app.workspace.getActiveFile();
+    if (!(file instanceof TFile) || file.extension !== "md") {
+      if (showNotice) new Notice("先打开一篇 Markdown 笔记");
+      return;
+    }
+    const persisted = this.settings.scrollRestore.positions?.[file.path];
+    if (persisted && !this.notePositions.has(file.path)) {
+      this.notePositions.set(file.path, persisted);
+    }
+    if (!this.notePositions.has(file.path)) {
+      if (showNotice) new Notice("这篇笔记还没有记录浏览位置");
+      return;
+    }
+    const apply = () => this.restoreScrollFor(file, true);
+    const restored = apply();
+    requestAnimationFrame(apply);
+    window.setTimeout(apply, 350);
+    if (showNotice) new Notice(restored ? "已回到上次浏览位置" : "暂时无法恢复当前位置");
+  }
+
+  /** 注册：切换笔记时记录位置，打开笔记时恢复位置 */
+  private registerScrollRestore(): void {
+    this.registerEvent(
+      this.app.workspace.on("file-open", (file) => {
+        this.attachScrollListener();
+        if (file instanceof TFile) {
+          this.scheduleAnnotationPrune(file);
+        }
+        if (!(file instanceof TFile) || !this.settings.scrollRestore.enabled) return;
+        if (!this.notePositions.has(file.path)) return;
+        const apply = () => this.restoreScrollFor(file);
+        let notified = false;
+        const applyWithNotice = () => {
+          if (apply() && !notified) {
+            notified = true;
+            new Notice("已回到上次浏览位置");
+          }
+        };
+        requestAnimationFrame(applyWithNotice);
+        window.setTimeout(apply, 350); // 图片/字体加载完成后二次校正
+      })
+    );
+
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.attachScrollListener()));
+
+    this.registerEvent(
+      this.app.workspace.on("editor-change", (editor) => {
+        const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!mdView || mdView.editor !== editor || !(mdView.file instanceof TFile)) return;
+        if (this.settings.scrollRestore.enabled) {
+          this.savePosition(mdView.file, editor);
+        }
+        // 文本被修改后，自动清理引用已失效的便签
+        this.scheduleAnnotationPrune(mdView.file);
+      })
+    );
+
+    this.attachScrollListener();
   }
 
   openSettings(): void {
@@ -1032,10 +1249,15 @@ export default class AIOrganizerPlugin extends Plugin {
     targetLang?: string;
   }): Promise<void> {
     const quote = this.stripOrganizerInlineNotes(opts.snapshot.text).trim() || opts.snapshot.text.trim();
+    // Zotero 式锚点：记录 quote 位置，定位时优先锚点、文字兜底
+    const anchor = computeQuoteAnchor(opts.snapshot.from, opts.snapshot.text, quote);
     let existing = this.findAnnotationForSelection(opts.snapshot.filePath, opts.type, quote);
     const now = Date.now();
     if (existing) {
       existing.quote = quote;
+      existing.anchorFrom = anchor?.from;
+      existing.anchorTo = anchor?.to;
+      existing.anchorLost = false;
       existing.translated = opts.translated;
       existing.thought = opts.thought;
       existing.targetLang = opts.targetLang;
@@ -1049,6 +1271,9 @@ export default class AIOrganizerPlugin extends Plugin {
         translated: opts.translated,
         thought: opts.thought,
         targetLang: opts.targetLang,
+        anchorFrom: anchor?.from,
+        anchorTo: anchor?.to,
+        anchorLost: false,
         createdAt: now,
         updatedAt: now,
       };
@@ -1167,11 +1392,38 @@ export default class AIOrganizerPlugin extends Plugin {
     if (annotations.length === 0) return Decoration.none;
 
     const doc = view.state.doc.toString();
-    const byRange = new Map<string, { from: number; to: number; annotations: AIOAnnotation[] }>();
+    const byRange = new Map<
+      string,
+      { from: number; to: number; annotations: AIOAnnotation[]; lost?: boolean }
+    >();
 
     for (const annotation of annotations) {
       const quote = annotation.quote.trim();
-      let from = doc.indexOf(quote);
+      // 优先按锚点定位（Zotero 式），找不到再全文搜索
+      const primary = resolveQuoteRange(doc, annotation);
+      let from = primary ? primary.from : doc.indexOf(quote);
+      if (from === -1) {
+        // 引文已被破坏：匹配剩余的最长片段，用「失效」样式标出来，而不是整条消失
+        if (quote.length <= 300) {
+          const partial = findBestPartialMatch(doc, quote);
+          if (partial) {
+            const key = `${partial.from}:${partial.to}`;
+            const existing = byRange.get(key);
+            if (existing) {
+              existing.annotations.push(annotation);
+              existing.lost = true;
+            } else {
+              byRange.set(key, {
+                from: partial.from,
+                to: partial.to,
+                annotations: [annotation],
+                lost: true,
+              });
+            }
+          }
+        }
+        continue;
+      }
       while (from !== -1) {
         const to = from + quote.length;
         const key = `${from}:${to}`;
@@ -1192,14 +1444,17 @@ export default class AIOrganizerPlugin extends Plugin {
       decorations.push({
         from: range.from,
         to: range.to,
-        value: Decoration.mark({ class: "aio-annotation-highlight" }),
+        value: Decoration.mark({
+          class: range.lost ? "aio-annotation-highlight is-lost" : "aio-annotation-highlight",
+        }),
       });
+      // 标记放在引文起点、side:-1，避免遮挡行尾光标
       decorations.push({
-        from: range.to,
-        to: range.to,
+        from: range.from,
+        to: range.from,
         value: Decoration.widget({
-          widget: new AnnotationMarkerWidget(this, range.annotations),
-          side: 1,
+          widget: new AnnotationMarkerWidget(this, range.annotations, range.lost),
+          side: -1,
         }),
       });
     }
@@ -1210,22 +1465,55 @@ export default class AIOrganizerPlugin extends Plugin {
   private refreshAnnotationDecorations(): void {
     const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
     const cm = (mdView?.editor as unknown as { cm?: EditorView }).cm;
-    cm?.dispatch({ effects: annotationRefreshEffect.of() });
-    window.requestAnimationFrame(() => cm?.dispatch({ effects: annotationRefreshEffect.of() }));
-    window.setTimeout(() => cm?.dispatch({ effects: annotationRefreshEffect.of() }), 80);
+    if (!cm) return;
+    // 输入法组合输入期间不派发刷新，避免打断组合、弄丢光标（文档变化本身也会触发装饰重建）
+    if (cm.composing) return;
+    cm.dispatch({ effects: annotationRefreshEffect.of() });
+    window.requestAnimationFrame(() => {
+      if (!cm.composing) {
+        cm.dispatch({ effects: annotationRefreshEffect.of() });
+      }
+    });
   }
 
-  private async pruneMissingAnnotations(file: TFile): Promise<boolean> {
-    const content = await this.app.vault.cachedRead(file);
-    const before = this.settings.annotations.length;
-    this.settings.annotations = this.settings.annotations.filter((item) => {
-      if (item.filePath !== file.path) return true;
-      return item.quote.trim().length > 1 && content.includes(item.quote.trim());
-    });
-    if (this.settings.annotations.length === before) return false;
+  /** 文本变化后核对便签引文是否仍在文档中：找不到时标记「位置失效」而不是删除（符合主流产品做法） */
+  private async pruneMissingAnnotations(file: TFile, contentOverride?: string): Promise<boolean> {
+    const content = contentOverride ?? (await this.app.vault.cachedRead(file));
+    let changed = false;
+    for (const item of this.settings.annotations) {
+      if (item.filePath !== file.path) continue;
+      if (item.quote.trim().length <= 1) continue;
+      const found = content.includes(item.quote.trim());
+      if (!found && !item.anchorLost) {
+        item.anchorLost = true;
+        changed = true;
+      } else if (found && item.anchorLost) {
+        item.anchorLost = false;
+        changed = true;
+      }
+    }
+    if (!changed) return false;
     await this.saveSettings();
     this.refreshAnnotationDecorations();
     return true;
+  }
+
+  /** 文本变化后延迟清理失效的便签（引文被修改/删除时自动移除） */
+  private scheduleAnnotationPrune(file: TFile): void {
+    if (!this.settings.annotations.some((item) => item.filePath === file.path)) return;
+    if (this.annotationPruneTimer) window.clearTimeout(this.annotationPruneTimer);
+    this.annotationPruneTimer = window.setTimeout(() => {
+      this.annotationPruneTimer = null;
+      const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+      if (mdView?.file?.path !== file.path || !mdView.editor) return;
+      const cm = (mdView.editor as unknown as { cm?: { composing?: boolean } }).cm;
+      if (cm?.composing) {
+        // 输入法组合中不清理，避免打断输入；稍后重试
+        this.scheduleAnnotationPrune(file);
+        return;
+      }
+      void this.pruneMissingAnnotations(file, mdView.editor.getValue());
+    }, 600);
   }
 
   private uniqueAnnotations(items: AIOAnnotation[]): AIOAnnotation[] {
@@ -1264,6 +1552,14 @@ export default class AIOrganizerPlugin extends Plugin {
     });
     closeBtn.setText("×");
     closeBtn.addEventListener("click", () => this.hideTranslationPopup());
+
+    if (annotations.some((item) => item.anchorLost)) {
+      const lostHint = popup.createDiv({ cls: "aio-annotation-existing" });
+      lostHint.createDiv({
+        cls: "aio-annotation-existing-title",
+        text: "⚠️ 原文已变，这条便签无法定位到正文（可在面板中删除）",
+      });
+    }
 
     const translation = annotations
       .filter((item) => item.type === "translation" && item.translated)
@@ -1364,6 +1660,14 @@ export default class AIOrganizerPlugin extends Plugin {
     const title = head.createDiv({ cls: "aio-translation-title" });
     setIcon(title.createSpan({ cls: "aio-translation-title-icon" }), "sticky-note");
     title.createSpan({ text: "当前笔记便签" });
+    const exportBtn = head.createEl("button", {
+      cls: "aio-translation-icon-btn",
+      attr: { type: "button", title: "导出便签为笔记", "aria-label": "导出便签为笔记" },
+    });
+    setIcon(exportBtn.createSpan({ cls: "aio-translation-icon" }), "download");
+    exportBtn.addEventListener("click", () => {
+      void this.exportAnnotationsToNote();
+    });
     const closeBtn = head.createEl("button", {
       cls: "aio-translation-icon-btn",
       attr: { type: "button", title: "关闭", "aria-label": "关闭" },
@@ -1381,7 +1685,7 @@ export default class AIOrganizerPlugin extends Plugin {
 
     popup.createDiv({
       cls: "aio-annotation-panel-summary",
-      text: `${annotations.length} 条便签，点击卡片编辑，右侧可删除。`,
+      text: this.panelSummaryText(annotations),
     });
     const list = popup.createDiv({ cls: "aio-annotation-panel-list" });
     for (const item of annotations) {
@@ -1394,6 +1698,9 @@ export default class AIOrganizerPlugin extends Plugin {
       const top = row.createDiv({ cls: "aio-annotation-panel-item-head" });
       const meta = top.createDiv({ cls: "aio-annotation-meta" });
       meta.createSpan({ cls: "aio-annotation-kind", text: item.type === "translation" ? "翻译" : "想法" });
+      if (item.anchorLost) {
+        meta.createSpan({ cls: "aio-annotation-kind is-lost", text: "位置已失效" });
+      }
       meta.createSpan({ cls: "aio-annotation-time", text: new Date(item.updatedAt).toLocaleString() });
       const rowActions = top.createDiv({ cls: "aio-annotation-row-actions" });
       const editBtn = rowActions.createEl("button", {
@@ -1418,16 +1725,113 @@ export default class AIOrganizerPlugin extends Plugin {
         cls: "aio-annotation-panel-body",
         text: item.thought || item.translated || "打开后编辑便签内容",
       });
-      row.addEventListener("click", () => this.showAnnotationThread(item.filePath, item.quote));
+      const openAction = () =>
+        item.anchorLost
+          ? this.showAnnotationThread(item.filePath, item.quote)
+          : this.jumpToAnnotation(item);
+      row.addEventListener("click", openAction);
       row.addEventListener("keydown", (evt) => {
         if (evt.key === "Enter" || evt.key === " ") {
           evt.preventDefault();
-          this.showAnnotationThread(item.filePath, item.quote);
+          openAction();
         }
       });
     }
 
     this.positionFloatingPanel(popup);
+  }
+
+  /** 点击便签跳转到原文位置（Zotero 式导航） */
+  jumpToAnnotation(item: AIOAnnotation): void {
+    const file = this.app.vault.getAbstractFileByPath(item.filePath);
+    if (!(file instanceof TFile)) {
+      new Notice("便签对应的笔记不存在");
+      return;
+    }
+    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (mdView?.file?.path === file.path) {
+      this.selectQuoteInEditor(mdView.editor, item);
+      return;
+    }
+    void this.app.workspace.getLeaf(false).openFile(file).then(() => {
+      const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+      if (view?.file?.path === file.path) {
+        this.selectQuoteInEditor(view.editor, item);
+      }
+    });
+  }
+
+  /** 选中并滚动到便签引文 */
+  private selectQuoteInEditor(editor: Editor, item: AIOAnnotation): void {
+    const doc = editor.getValue();
+    const range = resolveQuoteRange(doc, item);
+    if (!range) {
+      new Notice("这段文字在当前笔记中已找不到");
+      return;
+    }
+    const from = posFromOffset(doc, range.from);
+    const to = posFromOffset(doc, range.to);
+    editor.setSelection(from, to);
+    editor.scrollIntoView({ from, to }, true);
+    this.selectionToolbarSuppressedUntil = Date.now() + 1200;
+  }
+
+  /** 把当前笔记的全部便签导出为一篇 Markdown 笔记（对应 Zotero 的「合并为笔记」） */
+  async exportAnnotationsToNote(): Promise<void> {
+    const file = this.app.workspace.getActiveFile();
+    if (!(file instanceof TFile) || file.extension !== "md") {
+      new Notice("先打开一篇 Markdown 笔记");
+      return;
+    }
+    await this.pruneMissingAnnotations(file);
+    const annotations = this.uniqueAnnotations(
+      this.settings.annotations.filter((item) => item.filePath === file.path)
+    ).sort((a, b) => b.updatedAt - a.updatedAt);
+    if (annotations.length === 0) {
+      new Notice("这篇笔记还没有便签");
+      return;
+    }
+
+    const lines: string[] = [];
+    lines.push(`# ${file.basename} · 便签汇总`);
+    lines.push("");
+    lines.push(`> [!quote] 由 AI Organizer 导出 · ${new Date().toLocaleString()}`);
+    lines.push("");
+    for (const item of annotations) {
+      lines.push(`## ${item.type === "translation" ? `翻译${item.targetLang ? `（${item.targetLang}）` : ""}` : "想法"}${item.anchorLost ? "（位置已失效）" : ""}`);
+      lines.push("");
+      if (item.anchorLost) {
+        lines.push("> [!warning] 原文已变，无法定位到正文");
+        lines.push("");
+      }
+      lines.push(`> ${item.quote.split("\n").join("\n> ")}`);
+      lines.push("");
+      if (item.type === "translation" && item.translated) {
+        lines.push(`**译文：** ${item.translated}`);
+        lines.push("");
+      }
+      if (item.thought) {
+        lines.push(`**我的想法：** ${item.thought}`);
+        lines.push("");
+      }
+      lines.push(`*${new Date(item.updatedAt).toLocaleString()}*`);
+      lines.push("");
+      lines.push("---");
+      lines.push("");
+    }
+
+    const folder = file.parent?.path ?? "";
+    const fileName = `${folder ? folder + "/" : ""}${file.basename} 便签.md`;
+    const newFile = await this.app.vault.create(fileName, lines.join("\n"));
+    new Notice(`已导出 ${annotations.length} 条便签`);
+    void this.app.workspace.getLeaf(false).openFile(newFile);
+  }
+
+  /** 便签面板摘要文本 */
+  private panelSummaryText(annotations: AIOAnnotation[]): string {
+    const lost = annotations.filter((item) => item.anchorLost).length;
+    const suffix = lost > 0 ? `（其中 ${lost} 条位置已失效，可点开查看或删除）` : "";
+    return `${annotations.length} 条便签，点击卡片可跳转到原文，右侧可删除。${suffix}`;
   }
 
   private async deleteAnnotation(id: string, after?: () => void, ask = true, notify = true): Promise<void> {

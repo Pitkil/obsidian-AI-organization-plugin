@@ -74,7 +74,7 @@ export async function streamLines(
 }
 
 /** 兼容多种流式格式，抽取文本增量 */
-function extractDelta(json: any): string | null {
+export function extractDelta(json: any): string | null {
   if (!json || typeof json !== "object") return null;
 
   // OpenAI / DeepSeek / 通义 / 智谱 / Kimi
@@ -117,6 +117,14 @@ export function parseNonStreamJson(json: any): string {
   // Ollama
   if (typeof json?.message?.content === "string") return json.message.content;
   if (typeof json?.response === "string") return json.response;
+  // Anthropic: { content: [{ type: "text", text: "..." }, ...] }
+  if (Array.isArray(json?.content)) {
+    const text = json.content
+      .filter((b: any) => b?.type === "text" && typeof b.text === "string")
+      .map((b: any) => b.text)
+      .join("");
+    if (text) return text;
+  }
   // Gemini
   const candidates = json?.candidates;
   if (Array.isArray(candidates) && candidates.length > 0) {

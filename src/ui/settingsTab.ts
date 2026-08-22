@@ -49,6 +49,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
     this.renderBatch();
     this.renderTranslate();
     this.renderChat();
+    this.renderScrollRestore();
   }
 
   private createSection(
@@ -996,5 +997,20 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         ta.inputEl.rows = 4;
         ta.inputEl.addClass("aio-textarea");
       });
+  }
+
+  // ---------- 浏览位置记忆 ----------
+  private renderScrollRestore(): void {
+    const containerEl = this.createSection("浏览位置记忆", "打开笔记时自动回到上次浏览的滚动位置。", "book-marked");
+    const s = this.plugin.settings;
+    new Setting(containerEl)
+      .setName("记住并恢复浏览位置")
+      .setDesc("切换文档后重新打开，自动滚动到上次的位置并恢复光标行。")
+      .addToggle((t) =>
+        t.setValue(s.scrollRestore.enabled).onChange(async (v) => {
+          s.scrollRestore.enabled = v;
+          await this.plugin.saveSettings();
+        })
+      );
   }
 }

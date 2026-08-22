@@ -100,3 +100,29 @@ export function firstHeading(content: string): string {
   const m = content.match(/^#\s+(.+)$/m);
   return m ? m[1].trim().slice(0, 30) : "";
 }
+
+/**
+ * 限制浏览位置缓存条数，防止无限增长。
+ * 依赖调用方把「最近访问」的记录放在后面（delete 后重新 set 可更新插入顺序）。
+ */
+export function capScrollPositions<T>(
+  positions: Record<string, T>,
+  max = 1000
+): Record<string, T> {
+  const entries = Object.entries(positions);
+  if (entries.length <= max) return positions;
+  return Object.fromEntries(entries.slice(entries.length - max));
+}
+
+/**
+ * 选中工具栏的选区签名：用于「手动关闭后，同一选区不再自动弹出」。
+ * 文本统一 trim，保证关闭时记录与弹出时检查完全一致（否则选区首尾空白会让签名对不上）。
+ */
+export function selectionSignature(
+  filePath: string,
+  from: { line: number; ch: number },
+  to: { line: number; ch: number },
+  text: string
+): string {
+  return `${filePath}\u0000${from.line}:${from.ch}-${to.line}:${to.ch}\u0000${text.trim()}`;
+}

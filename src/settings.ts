@@ -13,6 +13,11 @@ export interface AIOAnnotation {
   translated?: string;
   thought?: string;
   targetLang?: string;
+  /** 锚点位置（行/列），Zotero 式：优先按位置定位，文字搜索兜底 */
+  anchorFrom?: { line: number; ch: number };
+  anchorTo?: { line: number; ch: number };
+  /** 引文在当前笔记中已找不到（位置失效）时置为 true，不自动删除 */
+  anchorLost?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -132,6 +137,14 @@ export interface AIOrganizerSettings {
     /** 系统提示词 */
     systemPrompt: string;
   };
+
+  // ---------- 浏览位置记忆 ----------
+  scrollRestore: {
+    /** 打开笔记时恢复到上次滚动位置 */
+    enabled: boolean;
+    /** 每个笔记的浏览位置（库内路径 -> 位置），跨会话持久化到磁盘 */
+    positions: Record<string, { top: number; line: number; ch: number }>;
+  };
 }
 
 export const DEFAULT_SETTINGS: AIOrganizerSettings = {
@@ -222,6 +235,11 @@ export const DEFAULT_SETTINGS: AIOrganizerSettings = {
     systemPrompt:
       "你是一个嵌入在 Obsidian 中的 AI 助手「AI Organizer」。回答要简洁、准确、结构清晰，默认使用中文。涉及 Markdown 时请输出规范的 Markdown 语法，便于直接写入笔记。",
   },
+
+  scrollRestore: {
+    enabled: true,
+    positions: {},
+  },
 };
 
 // ============================================================
@@ -238,7 +256,7 @@ export async function saveSettings(plugin: Plugin, settings: AIOrganizerSettings
 }
 
 /** 递归浅合并，保证新增设置字段有默认值 */
-function deepMerge<T>(base: T, override: Partial<T>): T {
+export function deepMerge<T>(base: T, override: Partial<T>): T {
   const result: any = { ...(base as any) };
   for (const key of Object.keys(override || {})) {
     const baseVal = (base as any)[key];
@@ -259,10 +277,15 @@ function deepMerge<T>(base: T, override: Partial<T>): T {
   return result as T;
 }
 
-function normalizeSettings(settings: AIOrganizerSettings): AIOrganizerSettings {
+export function normalizeSettings(settings: AIOrganizerSettings): AIOrganizerSettings {
   settings.annotations = (settings.annotations ?? []).filter(
     (item) => item && item.filePath && item.quote && item.type
   );
+
+  // 浏览位置持久化：兼容旧数据（无 positions 字段时给空对象）
+  if (!settings.scrollRestore.positions || typeof settings.scrollRestore.positions !== "object") {
+    settings.scrollRestore.positions = {};
+  }
 
   settings.translate.targetLanguages = Array.from(
     new Set([settings.translate.defaultTarget, ...(settings.translate.targetLanguages ?? [])].map((item) => item.trim()).filter(Boolean))
