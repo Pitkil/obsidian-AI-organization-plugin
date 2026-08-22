@@ -59,6 +59,9 @@ export class ChatView extends ItemView {
   private selectionSnapshotText = "";
   private selectionSnapshotFilePath = "";
   private attachedImages: ChatImagePart[] = [];
+  private conversationEpoch = 0;
+  private renderEpoch = 0;
+  private renderSerial = 0;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -173,6 +176,15 @@ export class ChatView extends ItemView {
     this.contextClearBtn.addEventListener("click", (evt) => {
       evt.preventDefault();
       this.clearSelectionContext();
+    });
+    const contextClearAllBtn = this.contextBar.createEl("button", {
+      cls: "aio-context-clear-all",
+      attr: { type: "button", title: "清空上下文", "aria-label": "清空上下文" },
+    });
+    setIcon(contextClearAllBtn, "eraser");
+    contextClearAllBtn.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      this.clearAllContext();
     });
 
     const inputWrap = inputArea.createDiv({ cls: "aio-chat-input-wrap" });
@@ -373,6 +385,7 @@ export class ChatView extends ItemView {
   // ---------------- 消息渲染 ----------------
 
   private showEmptyState(): void {
+    this.renderEpoch++;
     this.messageContainer.empty();
     this.emptyState = null;
     return;
@@ -406,9 +419,24 @@ export class ChatView extends ItemView {
     avatar.setText(role === "user" ? "我" : "答");
     const body = row.createDiv({ cls: "aio-msg-body" });
     const content = body.createDiv({ cls: "aio-msg-content markdown-rendered" });
-    void MarkdownRenderer.render(this.app, text || "…", content, "", this);
+    this.renderMarkdown(content, text || "…");
     this.scrollToBottom();
     return content;
+  }
+
+  private renderMarkdown(content: HTMLElement, text: string): void {
+    const epoch = this.renderEpoch;
+    const serial = ++this.renderSerial;
+    content.dataset.aioRenderSerial = String(serial);
+    const scratch = document.createElement("div");
+    void MarkdownRenderer.render(this.app, text, scratch, "", this).then(() => {
+      if (epoch !== this.renderEpoch || content.dataset.aioRenderSerial !== String(serial) || !content.isConnected) return;
+      content.empty();
+      while (scratch.firstChild) {
+        content.appendChild(scratch.firstChild);
+      }
+      this.scrollToBottom();
+    });
   }
 
   private loadConversationHistory(): void {
@@ -477,6 +505,7 @@ export class ChatView extends ItemView {
 
     this.messages.push({ role: "user", content: userInput });
     this.addMessage("user", userInput);
+    const runEpoch = this.conversationEpoch;
 
     this.streaming = true;
     this.sendBtn.addClass("is-hidden");
@@ -520,6 +549,7 @@ export class ChatView extends ItemView {
         signal: this.abortCtrl.signal,
         profileId: this.modelSelect.value || undefined,
         onStream: (delta) => {
+          if (runEpoch !== this.conversationEpoch) return;
           full += delta;
           if (aiContent) this.renderStreaming(aiContent, full);
         },
@@ -539,6 +569,15 @@ export class ChatView extends ItemView {
         full = `⚠️ ${msg}`;
       }
     } finally {
+      if (runEpoch !== this.conversationEpoch) {
+        this.hideTyping();
+        this.streaming = false;
+        this.sendBtn.removeClass("is-hidden");
+        this.stopBtn.addClass("is-hidden");
+        this.abortCtrl = null;
+        this.inputEl.focus();
+        return;
+      }
       this.messages.push({ role: "assistant", content: full });
       await this.persistConversationHistory();
       this.hideTyping();
@@ -551,8 +590,7 @@ export class ChatView extends ItemView {
   }
 
   private renderStreaming(el: HTMLElement, text: string): void {
-    el.empty();
-    void MarkdownRenderer.render(this.app, text, el, "", this);
+    this.renderMarkdown(el, text);
     this.scrollToBottom();
   }
 
@@ -681,6 +719,21 @@ export class ChatView extends ItemView {
     this.setToggleState(this.selToggle, false);
     this.refreshInputContext();
     this.inputEl.focus();
+  }
+
+  /** 一键清空当前所有上下文（选中文本 + 当前笔记 + 附件图片 + 对话历史） */
+  private clearAllContext(): void {
+    this.selectionSnapshotText = "";
+    this.selectionSnapshotFilePath = "";
+    this.plugin.clearSelectionSnapshot();
+    this.setToggleState(this.selToggle, false);
+    this.setToggleState(this.noteToggle, false);
+    if (this.attachedImages.length > 0) {
+      this.attachedImages = [];
+      this.renderAttachments();
+    }
+    // 对话历史一并清空（历史也是注入的上下文，界面与持久化都清）
+    this.clearConversation();
   }
 
   private async buildImageContext(opts: {
@@ -1001,12 +1054,17 @@ export class ChatView extends ItemView {
   }
 
   private clearConversation(): void {
+    this.conversationEpoch++;
+    this.renderEpoch++;
     this.messages = [];
     this.plugin.settings.chat.history = [];
     void this.plugin.saveSettings();
     this.abortCtrl?.abort();
     this.hideTyping();
+    this.typingEl = null;
     this.showEmptyState();
+    this.refreshInputContext();
+    notify("已清空对话历史");
     this.inputEl.focus();
   }
 }

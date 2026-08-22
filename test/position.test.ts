@@ -6,6 +6,7 @@ import {
   computeQuoteAnchor,
   resolveQuoteRange,
   findBestPartialMatch,
+  isSubstantialMatch,
 } from "../src/utils/position";
 
 describe("posAfterFlatOffset / posFromOffset / offsetOfPos", () => {
@@ -153,5 +154,23 @@ describe("findBestPartialMatch（引文被破坏时的兜底定位）", () => {
     // 最长片段可能是「第一行内容」(或带尾随换行)，也可能是「第二行内容」
     const matched = multi.slice(r!.from, r!.to).replace(/\n/g, "");
     expect(matched === "第一行内容" || matched === "第二行内容").toBe(true);
+  });
+});
+
+describe("isSubstantialMatch（引文主体是否仍在）", () => {
+  it("片段达一半以上视为主体仍在", () => {
+    expect(isSubstantialMatch(20, 10)).toBe(true);
+    expect(isSubstantialMatch(20, 9)).toBe(false);
+  });
+
+  it("短引文用 4 字符下限", () => {
+    expect(isSubstantialMatch(6, 4)).toBe(true);
+    expect(isSubstantialMatch(6, 3)).toBe(false);
+  });
+
+  it("边界：恰好一半 / 刚好 4 字符", () => {
+    expect(isSubstantialMatch(8, 4)).toBe(true);
+    expect(isSubstantialMatch(4, 4)).toBe(true);
+    expect(isSubstantialMatch(4, 3)).toBe(false);
   });
 });

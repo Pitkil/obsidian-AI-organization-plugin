@@ -104,3 +104,11 @@ export function findBestPartialMatch(
   }
   return best ? { from: best.from, to: best.to } : null;
 }
+
+/**
+ * 匹配片段是否「足够」：引文主体仍可辨认（片段长度 >= 引文长度的一半，至少 4 字符）。
+ * 主体还在 → 便签自动跟随剩余文字保持正常高亮；否则才视为失效（灰色）。
+ */
+export function isSubstantialMatch(quoteLen: number, matchedLen: number): boolean {
+  return matchedLen >= Math.max(4, Math.floor(quoteLen * 0.5));
+}

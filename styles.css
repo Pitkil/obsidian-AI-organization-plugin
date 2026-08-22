@@ -974,6 +974,31 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 一键清空上下文按钮 */
+.aio-context-clear-all {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--aio-muted);
+  cursor: pointer;
+  transition: background var(--aio-transition), color var(--aio-transition);
+}
+.aio-context-clear-all:hover {
+  background: var(--aio-hover);
+  color: var(--aio-primary-strong);
+}
+.aio-context-clear-all svg {
+  width: 14px;
+  height: 14px;
+}
 .aio-context-meter {
   --aio-context-percent: 0%;
   position: absolute;
@@ -1294,6 +1319,182 @@
 
 /* 分区内设置行与输入控件：完全交给 Obsidian 默认样式，不再自定义 */
 
+/* 设置页最终覆盖：跟随 Obsidian 主题，不使用对话页品牌色 */
+.aio-settings {
+  --aio-primary: var(--interactive-accent);
+  --aio-primary-strong: var(--interactive-accent);
+  --aio-primary-soft: var(--background-modifier-hover);
+  --aio-primary-border: var(--background-modifier-border-hover);
+  --aio-accent: var(--text-error);
+  --aio-accent-strong: var(--text-error);
+  --aio-accent-soft: var(--background-modifier-error);
+  --aio-ink: var(--text-normal);
+  --aio-muted: var(--text-muted);
+  --aio-faint: var(--text-faint);
+  --aio-surface: var(--background-primary);
+  --aio-surface-2: var(--background-secondary);
+  --aio-hover: var(--background-modifier-hover);
+  --aio-line: var(--background-modifier-border);
+}
+
+.aio-settings .aio-model-config-bar,
+.aio-settings .aio-local-vision-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0 12px;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.aio-settings .aio-model-config-title,
+.aio-settings .aio-local-vision-title,
+.aio-settings .aio-model-profile-name {
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.aio-settings .aio-model-config-desc,
+.aio-settings .aio-local-vision-desc,
+.aio-settings .aio-model-profile-meta {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-normal);
+}
+
+.aio-settings .aio-local-vision-copy,
+.aio-settings .aio-model-config-copy {
+  min-width: 0;
+}
+
+.aio-settings .aio-local-vision-actions,
+.aio-settings .aio-model-profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.aio-settings .aio-model-add-btn,
+.aio-settings .aio-model-profile-btn {
+  min-height: var(--input-height, 32px);
+  padding: 0 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--button-radius, var(--radius-s));
+  background: var(--interactive-normal);
+  box-shadow: var(--input-shadow);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+}
+
+.aio-settings .aio-model-add-btn:hover,
+.aio-settings .aio-model-profile-btn:hover {
+  border-color: var(--background-modifier-border-hover);
+  background: var(--interactive-hover);
+  color: var(--text-normal);
+}
+
+.aio-settings .aio-model-add-btn {
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.aio-settings .aio-model-add-btn:hover {
+  background: var(--interactive-accent-hover);
+  color: var(--text-on-accent);
+}
+
+.aio-settings .aio-model-profile-btn.is-danger {
+  color: var(--text-error);
+}
+
+.aio-settings .aio-model-profile-btn.is-danger:hover {
+  border-color: var(--background-modifier-error);
+  background: var(--background-modifier-error);
+  color: var(--text-error);
+}
+
+.aio-settings .aio-model-profile-list {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 18px;
+}
+
+.aio-settings .aio-model-empty {
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  border-radius: 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: left;
+}
+
+.aio-settings .aio-model-profile-card {
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+  border-left: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s, 6px);
+  background: var(--background-primary);
+}
+
+.aio-settings .aio-model-profile-card.is-active {
+  border-color: var(--interactive-accent);
+}
+
+.aio-settings .aio-model-profile-card.is-incomplete {
+  border-color: var(--background-modifier-error);
+}
+
+.aio-settings .aio-model-profile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.aio-settings .aio-model-profile-card .setting-item {
+  padding: 10px 12px;
+}
+
+.aio-settings .aio-model-profile-card .setting-item:not(:last-child) {
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.aio-settings .aio-model-profile-card input,
+.aio-settings .aio-model-profile-card select,
+.aio-settings .aio-model-profile-card textarea {
+  max-width: 420px;
+}
+
+@media (max-width: 720px) {
+  .aio-settings .aio-model-config-bar,
+  .aio-settings .aio-local-vision-bar,
+  .aio-settings .aio-model-profile-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .aio-settings .aio-local-vision-actions,
+  .aio-settings .aio-model-profile-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
 /* ============================================================
    无障碍：减少动态效果
    ============================================================ */
@@ -1323,7 +1524,7 @@
 }
 
 /* ============================================================
-   选中文本快捷工具栏 + 编辑撤回（Copilot 风格浮条）
+   选中文本 AI 快捷工具栏
    ============================================================ */
 .aio-selection-toolbar {
   position: fixed;
@@ -1331,19 +1532,17 @@
   display: none;
   flex-direction: column;
   align-items: stretch;
-  gap: 3px;
-  padding: 5px;
+  width: max-content;
   max-width: calc(100vw - 16px);
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--aio-line) 80%, #ffffff);
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--aio-surface) 94%, #ffffff);
-  box-shadow: 0 16px 34px rgba(28, 36, 33, 0.16);
+  min-width: 0;
+  padding: 0;
+  gap: 6px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   color: var(--aio-ink);
-  scrollbar-width: none;
-}
-.aio-selection-toolbar::-webkit-scrollbar {
-  display: none;
 }
 .aio-selection-toolbar.is-visible {
   display: flex;
@@ -1352,38 +1551,104 @@
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 2px;
-  max-width: calc(100vw - 24px);
-  min-height: 30px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  gap: 6px;
+  padding: 5px 6px;
   overflow-x: auto;
   overflow-y: hidden;
+  border: 1px solid color-mix(in srgb, var(--aio-line) 84%, #ffffff);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--aio-surface) 97%, #ffffff);
+  box-shadow: 0 8px 24px rgba(28, 36, 33, 0.12);
   scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  box-sizing: border-box;
 }
 .aio-selection-row::-webkit-scrollbar {
   display: none;
 }
-.aio-selection-format-row {
-  padding-top: 4px;
-  border-top: 1px solid color-mix(in srgb, var(--aio-line) 82%, transparent);
+.aio-selection-ai-row {
+  min-height: 38px;
 }
-.aio-selection-action {
+.aio-selection-ai-row > * {
+  align-self: center;
+  box-sizing: border-box;
+}
+/* 来源标签：左不留 padding，与第二行左缘对齐 */
+.aio-selection-origin {
+  flex: 0 0 auto;
+  padding: 0 4px 0 0;
+  color: var(--aio-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 30px;
+  white-space: nowrap;
+}
+/* 格式行：与 AI 行等高同宽 */
+.aio-selection-format-row {
+  min-height: 38px;
+}
+.aio-format-btn {
+  -webkit-appearance: none;
+  appearance: none;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
-  gap: 6px;
-  min-width: 0;
-  min-height: 28px;
-  padding: 0 8px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
   border: 0;
   border-radius: 7px;
   background: transparent;
   box-shadow: none;
   color: var(--aio-ink);
-  font-size: 12px;
-  font-weight: 650;
+  cursor: pointer;
+  line-height: 1;
+  transition: background var(--aio-transition), color var(--aio-transition);
+}
+.aio-format-btn:hover {
+  background: var(--aio-hover);
+  color: var(--aio-primary-strong);
+}
+.aio-format-text {
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.aio-format-btn svg {
+  width: 15px;
+  height: 15px;
+}
+/* AI 操作按钮 */
+.aio-selection-action {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--aio-ink);
   cursor: pointer;
   white-space: nowrap;
+  line-height: 1;
   transition: background var(--aio-transition), color var(--aio-transition);
+}
+.aio-selection-action {
+  gap: 5px;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 650;
 }
 .aio-selection-action:hover {
   background: var(--aio-hover);
@@ -1394,56 +1659,54 @@
   color: var(--aio-primary);
 }
 .aio-selection-action-icon svg {
-  width: 14px;
-  height: 14px;
-  stroke-width: 2.3px;
+  width: 15px;
+  height: 15px;
+  stroke-width: 2.15px;
 }
-.aio-format-btn {
-  -webkit-appearance: none;
-  appearance: none;
+/* 语言选择 / 关闭按钮 */
+.aio-selection-lang {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 0;
+  margin-left: 4px;
+}
+.aio-selection-lang-select {
+  height: 30px;
+  max-width: 82px;
+  padding: 0 22px 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--aio-primary-soft);
+  color: var(--aio-primary-strong);
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.aio-selection-lang-select option {
+  color: var(--text-normal);
+  background: var(--background-primary);
+}
+.aio-selection-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 26px;
-  min-width: 26px;
-  height: 26px;
-  min-height: 26px;
-  padding: 0;
+  width: 30px;
+  height: 30px;
+  margin-left: 6px;
   border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--aio-line) 82%, transparent);
   border-radius: 6px;
   background: transparent;
-  box-shadow: none;
-  color: var(--aio-ink);
-  cursor: pointer;
+  color: var(--aio-muted);
+  font-size: 16px;
   line-height: 1;
-  transition: background var(--aio-transition), color var(--aio-transition), transform var(--aio-transition);
+  cursor: pointer;
 }
-.aio-format-btn:hover {
+.aio-selection-close:hover {
   background: var(--aio-hover);
-  color: var(--aio-primary-strong);
-}
-.aio-format-icon,
-.aio-format-btn svg {
-  width: 14px;
-  height: 14px;
-  stroke-width: 2.25px;
-}
-.aio-format-text {
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: 0;
-}
-.aio-color-swatch {
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
-  background: var(--aio-swatch);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000000 18%, transparent);
-}
-.aio-color-btn.is-text .aio-color-swatch {
-  border-bottom: 3px solid var(--aio-swatch);
-  background: #ffffff;
+  color: var(--aio-ink);
 }
 
 /* ---- 编辑撤回浮条（高亮修改后可一键撤回） ---- */
@@ -1909,149 +2172,13 @@
   background: #5f6965;
 }
 
-/* ============================================================
-   选中工具栏补充（来源标签 / 语言选择 / 关闭按钮）
-   ============================================================ */
-.aio-selection-origin {
-  flex: 0 0 auto;
-  padding: 0 6px;
-  color: var(--aio-muted);
-  font-size: 11px;
-  font-weight: 600;
-}
-.aio-selection-lang {
-  display: inline-flex;
-  align-items: center;
-  flex: 0 0 auto;
-  gap: 4px;
-  margin: 0 2px;
-}
-.aio-selection-lang-label {
-  color: var(--aio-muted);
-  font-size: 11px;
-  font-weight: 600;
-}
-.aio-selection-lang-select {
-  max-width: 92px;
-  padding: 3px 6px;
-  border: 1px solid var(--aio-primary-border);
-  border-radius: 6px;
-  background: var(--aio-primary-soft);
-  color: var(--aio-primary-strong);
-  font-size: 11.5px;
-  font-weight: 650;
-  cursor: pointer;
-}
-.aio-selection-lang-select option {
-  color: var(--text-normal);
-  background: var(--background-primary);
-}
-.aio-selection-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
-  margin-left: 2px;
-  padding: 0;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--aio-muted);
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-}
-.aio-selection-close:hover {
-  background: var(--aio-hover);
-  color: var(--aio-ink);
-}
 
-/* Final selection toolbar tightening: two clean rows, no wrapped orphan buttons. */
-.aio-selection-toolbar {
-  width: min(920px, calc(100vw - 20px));
-  max-width: min(920px, calc(100vw - 20px));
-  padding: 6px;
-  gap: 5px;
-  border-radius: 12px;
-  overflow: hidden;
-}
-.aio-selection-row {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  overflow-x: auto;
-  overflow-y: hidden;
-  gap: 4px;
-}
-.aio-selection-ai-row {
-  min-height: 34px;
-}
-.aio-selection-format-row {
-  min-height: 32px;
-  padding-top: 5px;
-}
-.aio-selection-origin,
-.aio-selection-lang,
-.aio-selection-action,
-.aio-selection-close,
-.aio-format-btn {
-  flex: 0 0 auto;
-}
-.aio-selection-action {
-  height: 30px;
-  min-height: 30px;
-  padding: 0 10px;
-  border-radius: 8px;
-}
-.aio-selection-close {
-  margin-left: auto;
-  width: 30px;
-  height: 30px;
-}
-.aio-format-btn {
-  width: 32px;
-  min-width: 32px;
-  height: 30px;
-  min-height: 30px;
-  border-radius: 8px;
-}
-.aio-format-icon,
-.aio-format-btn svg {
-  width: 16px;
-  height: 16px;
-}
-.aio-color-btn {
-  position: relative;
-}
-.aio-color-swatch {
-  width: 17px;
-  height: 17px;
-  border-radius: 5px;
-}
-.aio-color-btn.is-text .aio-color-swatch {
-  background: var(--aio-swatch);
-  border-bottom: 0;
-}
-.aio-color-btn.is-text::after {
-  content: "A";
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.22);
-}
+
+
 
 /* ============================================================
-   ��ʾ�� toast��PunditRAG ��񣩡��� ͳһ�滻 Obsidian Ĭ�� Notice
-   ů�׿�Ƭ + ��ǩʽԲ�� + ״̬ɫ���������½Ƕѵ�
+   ��ʾ�� toast��PunditRAG ��񣩡��� ͳһ�滻 Obsidian Ĭ�� Notice
+   ů�׿�Ƭ + ��ǩʽԲ�� + ״̬ɫ���������½Ƕѵ�
    ============================================================ */
 .notice-container {
   top: 14px;

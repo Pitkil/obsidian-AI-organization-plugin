@@ -1,5 +1,5 @@
 import { Editor, EditorPosition, MarkdownView, Plugin, TFile, setIcon } from "obsidian";
-import { computeQuoteAnchor, findBestPartialMatch, posFromOffset, resolveQuoteRange } from "./utils/position";
+import { computeQuoteAnchor, findBestPartialMatch, isSubstantialMatch, posFromOffset, resolveQuoteRange } from "./utils/position";
 import { capScrollPositions, selectionSignature } from "./utils";
 import { notify, notifyError, notifyLoading, notifySuccess } from "./utils/notify";
 import { StateEffect } from "@codemirror/state";
@@ -475,8 +475,7 @@ export default class AIOrganizerPlugin extends Plugin {
 
     const toolbar = document.body.createDiv({ cls: "aio-selection-toolbar" });
     const aiRow = toolbar.createDiv({ cls: "aio-selection-row aio-selection-ai-row" });
-    const formatRow = toolbar.createDiv({ cls: "aio-selection-row aio-selection-format-row" });
-    aiRow.createSpan({ cls: "aio-selection-origin", text: "选中文字" });
+    this.applySelectionToolbarLayout(toolbar, aiRow);
     toolbar.addEventListener("pointerdown", (evt) => {
       const target = evt.target;
       if (target instanceof HTMLElement && target.closest(".aio-selection-close")) return;
@@ -524,42 +523,67 @@ export default class AIOrganizerPlugin extends Plugin {
       cls: "aio-selection-close",
       attr: { type: "button", title: "关闭", "aria-label": "关闭选中文本工具栏" },
     });
+    closeBtn.style.width = "30px";
+    closeBtn.style.minWidth = "30px";
+    closeBtn.style.height = "30px";
+    closeBtn.style.minHeight = "30px";
+    closeBtn.style.flex = "0 0 30px";
+    closeBtn.style.margin = "0";
+    closeBtn.style.padding = "0";
+    closeBtn.style.display = "inline-grid";
+    closeBtn.style.placeItems = "center";
     closeBtn.setText("×");
     const close = (evt: Event) => this.closeSelectionToolbar(evt);
     closeBtn.addEventListener("pointerdown", close, { capture: true });
     closeBtn.addEventListener("mousedown", close, { capture: true });
     closeBtn.addEventListener("click", close, { capture: true });
 
-    this.createFormatButton(formatRow, "undo-2", "撤销", () => this.runEditorCommand((editor) => editor.undo()));
-    this.createFormatButton(formatRow, "redo-2", "重做", () => this.runEditorCommand((editor) => editor.redo()));
-    this.createFormatButton(formatRow, "H2", "二级标题", () => this.toggleHeadingSelection(2));
-    this.createFormatButton(formatRow, "H3", "三级标题", () => this.toggleHeadingSelection(3));
-    this.createFormatButton(formatRow, "type", "正文", () => this.toggleHeadingSelection(0));
-    this.createFormatButton(formatRow, "bold", "加粗", () => this.toggleWrappedSelection("**", "**"));
-    this.createFormatButton(formatRow, "italic", "斜体", () => this.toggleWrappedSelection("*", "*"));
-    this.createFormatButton(formatRow, "strikethrough", "删除线", () => this.toggleWrappedSelection("~~", "~~"));
-    this.createFormatButton(formatRow, "underline", "下划线", () => this.toggleWrappedSelection("<u>", "</u>"));
-    this.createFormatButton(formatRow, "code-2", "行内代码", () => this.toggleWrappedSelection("`", "`"));
-    this.createFormatButton(formatRow, "highlighter", "荧光笔", () => this.toggleWrappedSelection("==", "=="));
-    this.createFormatButton(formatRow, "link", "链接", () => this.toggleWrappedSelection("[", "](url)"));
-    this.createFormatButton(formatRow, "table-2", "表格", () => this.insertAfterSelection("\n\n| 列 1 | 列 2 |\n| --- | --- |\n|  |  |\n"));
-    this.createColorButton(formatRow, "#b42318", "红色文字", (text) => this.toggleColorMarkup(text, "color", "#b42318"), "text");
-    this.createColorButton(formatRow, "#08796f", "绿色文字", (text) => this.toggleColorMarkup(text, "color", "#08796f"), "text");
-    this.createColorButton(formatRow, "#2563eb", "蓝色文字", (text) => this.toggleColorMarkup(text, "color", "#2563eb"), "text");
-    this.createColorButton(formatRow, "#fff1a8", "黄色高亮", (text) => this.toggleColorMarkup(text, "background", "#fff1a8"), "mark");
-    this.createFormatButton(formatRow, "eraser", "清除简单格式", () => this.clearBasicFormat());
-
     this.selectionToolbarEl = toolbar;
     return toolbar;
   }
 
+  private applySelectionToolbarLayout(toolbar: HTMLElement, aiRow: HTMLElement): void {
+    toolbar.style.width = "max-content";
+    toolbar.style.maxWidth = "calc(100vw - 16px)";
+    toolbar.style.minWidth = "0";
+    toolbar.style.alignItems = "center";
+    toolbar.style.padding = "0";
+    toolbar.style.gap = "6px";
+    toolbar.style.borderRadius = "0";
+    toolbar.style.boxSizing = "border-box";
+    toolbar.style.overflow = "visible";
+
+    for (const row of [aiRow]) {
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.flexWrap = "wrap";
+      row.style.gap = "4px";
+      row.style.width = "max-content";
+      row.style.maxWidth = "100%";
+      row.style.minWidth = "0";
+      row.style.minHeight = "38px";
+      row.style.overflow = "visible";
+      row.style.boxSizing = "border-box";
+      row.style.scrollbarWidth = "none";
+    }
+
+  }
+
   private createSelectionLanguageSelect(toolbar: HTMLElement): HTMLSelectElement {
     const wrap = toolbar.createDiv({ cls: "aio-selection-lang" });
-    wrap.createSpan({ cls: "aio-selection-lang-label", text: "译为" });
+    wrap.style.height = "30px";
+    wrap.style.display = "inline-flex";
+    wrap.style.alignItems = "center";
+    wrap.style.flex = "0 0 auto";
+    wrap.style.gap = "0";
+    wrap.style.margin = "0";
     const select = wrap.createEl("select", {
       cls: "aio-selection-lang-select",
       attr: { title: "设置翻译目标语言", "aria-label": "设置翻译目标语言" },
     });
+    select.style.height = "30px";
+    select.style.minHeight = "30px";
+    select.style.margin = "0";
     for (const lang of this.translationLanguages(this.settings.translate.defaultTarget)) {
       select.createEl("option", { value: lang, text: lang });
     }
@@ -586,6 +610,16 @@ export default class AIOrganizerPlugin extends Plugin {
       cls: "aio-selection-action",
       attr: { type: "button", title, "aria-label": title },
     });
+    btn.style.height = "30px";
+    btn.style.minHeight = "30px";
+    btn.style.flex = "0 0 auto";
+    btn.style.margin = "0";
+    btn.style.padding = "0 9px";
+    btn.style.display = "inline-flex";
+    btn.style.alignItems = "center";
+    btn.style.justifyContent = "center";
+    btn.style.boxSizing = "border-box";
+    btn.style.lineHeight = "1";
     setIcon(btn.createSpan({ cls: "aio-selection-action-icon" }), icon);
     btn.createSpan({ text: label });
     btn.addEventListener("pointerdown", (evt) => {
@@ -595,140 +629,23 @@ export default class AIOrganizerPlugin extends Plugin {
     btn.addEventListener("click", onClick);
   }
 
-  private createFormatButton(
-    toolbar: HTMLElement,
-    iconOrText: string,
-    title: string,
-    onClick: () => void
-  ): void {
-    const btn = toolbar.createEl("button", {
-      cls: "aio-format-btn",
-      attr: { type: "button", title, "aria-label": title },
-    });
-    if (/^H\d$/.test(iconOrText)) {
-      btn.createSpan({ cls: "aio-format-text", text: iconOrText });
-    } else {
-      setIcon(btn.createSpan({ cls: "aio-format-icon" }), iconOrText);
-    }
-    btn.addEventListener("pointerdown", (evt) => {
-      evt.preventDefault();
-      evt.stopPropagation();
-    });
-    btn.addEventListener("click", () => {
-      onClick();
-      this.selectionToolbarSuppressedUntil = Date.now() + 900;
-    });
-  }
-
-  private createColorButton(
-    toolbar: HTMLElement,
-    color: string,
-    title: string,
-    transform: (text: string) => string,
-    type: "text" | "mark"
-  ): void {
-    const btn = toolbar.createEl("button", {
-      cls: `aio-format-btn aio-color-btn is-${type}`,
-      attr: { type: "button", title, "aria-label": title },
-    });
-    btn.style.setProperty("--aio-swatch", color);
-    btn.createSpan({ cls: "aio-color-swatch" });
-    btn.addEventListener("pointerdown", (evt) => {
-      evt.preventDefault();
-      evt.stopPropagation();
-    });
-    btn.addEventListener("click", () => this.transformSnapshotSelection(transform));
-  }
-
-  private runEditorCommand(action: (editor: Editor) => void): void {
-    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!mdView?.editor) return;
-    action(mdView.editor);
-    this.hideSelectionToolbar();
-  }
-
-  private toggleWrappedSelection(before: string, after: string): void {
-    this.transformSnapshotSelection((text) => {
-      if (text.startsWith(before) && text.endsWith(after) && text.length >= before.length + after.length) {
-        return text.slice(before.length, text.length - after.length);
-      }
-      return `${before}${text}${after}`;
-    });
-  }
-
-  private insertAfterSelection(text: string): void {
-    const snapshot = this.getSelectionSnapshot();
-    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!snapshot || !mdView?.editor || mdView.file?.path !== snapshot.filePath) return;
-    if (samePosition(snapshot.from, snapshot.to)) {
-      mdView.editor.replaceRange(text, mdView.editor.getCursor());
-    } else {
-      mdView.editor.replaceRange(`${snapshot.text}${text}`, snapshot.from, snapshot.to);
-    }
-    this.hideSelectionToolbar();
-  }
-
-  private transformSnapshotSelection(transform: (text: string) => string): void {
-    const snapshot = this.getSelectionSnapshot();
-    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!snapshot || !mdView?.editor || mdView.file?.path !== snapshot.filePath || samePosition(snapshot.from, snapshot.to)) {
-      notify("当前选区不可写入，请切换至编辑模式");
-      return;
-    }
-    this.applyReplacement(mdView.editor, snapshot.from, snapshot.to, transform(snapshot.text), "已应用格式");
-    this.hideSelectionToolbar();
-  }
-
-  private toggleHeadingSelection(level: 0 | 2 | 3): void {
-    const snapshot = this.getSelectionSnapshot();
-    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!snapshot || !mdView?.editor || mdView.file?.path !== snapshot.filePath || samePosition(snapshot.from, snapshot.to)) {
-      notify("当前选区不可写入，请切换至编辑模式");
-      return;
-    }
-    const prefix = level === 0 ? "" : `${"#".repeat(level)} `;
-    const formatted = snapshot.text
-      .split("\n")
-      .map((line) => {
-        const withoutHeading = line.replace(/^#{1,6}\s+/, "");
-        const hasSameHeading = level > 0 && line.startsWith(prefix);
-        return level === 0 || hasSameHeading ? withoutHeading : `${prefix}${withoutHeading}`;
-      })
-      .join("\n");
-    this.applyReplacement(mdView.editor, snapshot.from, snapshot.to, formatted, "已应用标题格式");
-    this.hideSelectionToolbar();
-  }
-
-  private toggleColorMarkup(text: string, prop: "color" | "background", value: string): string {
-    const escapedProp = prop.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const tagRe = new RegExp(`^<(span|mark)\\s+style="${escapedProp}:${escapedValue}">([\\s\\S]*)<\\/\\1>$`);
-    const matched = text.match(tagRe);
-    if (matched) return matched[2];
-    const tag = prop === "background" ? "mark" : "span";
-    return `<${tag} style="${prop}:${value}">${text}</${tag}>`;
-  }
-
-  private clearBasicFormat(): void {
-    this.transformSnapshotSelection((text) =>
-      text
-        .replace(/\*\*([^*]+)\*\*/g, "$1")
-        .replace(/\*([^*]+)\*/g, "$1")
-        .replace(/~~([^~]+)~~/g, "$1")
-        .replace(/==([^=]+)==/g, "$1")
-        .replace(/`([^`]+)`/g, "$1")
-        .replace(/<\/?u>/g, "")
-        .replace(/<\/?(span|mark)\b[^>]*>/g, "")
-    );
-  }
-
   private positionSelectionToolbar(toolbar: HTMLElement): void {
     const rect = this.selectionDomRect();
     requestAnimationFrame(() => {
-      const width = toolbar.offsetWidth || 156;
+      const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+      const editorRect = mdView?.contentEl.getBoundingClientRect();
+      const editorAvailableWidth = editorRect ? editorRect.width - 16 : window.innerWidth - 16;
+      const maxWidth = Math.max(220, Math.min(900, editorAvailableWidth));
+      toolbar.style.maxWidth = `${maxWidth}px`;
+      toolbar.style.width = "max-content";
+      const measuredWidth = Math.ceil(toolbar.getBoundingClientRect().width || toolbar.scrollWidth || 156);
+      const width = Math.min(maxWidth, measuredWidth);
+      toolbar.style.width = `${width}px`;
       const height = toolbar.offsetHeight || 38;
       const preferredLeft = rect ? rect.left + rect.width / 2 - width / 2 : window.innerWidth / 2 - width / 2;
-      const left = Math.min(window.innerWidth - width - 8, Math.max(8, preferredLeft));
+      const minLeft = editorRect ? editorRect.left + 8 : 8;
+      const maxLeft = editorRect ? editorRect.right - width - 8 : window.innerWidth - width - 8;
+      const left = Math.max(minLeft, Math.min(preferredLeft, Math.max(minLeft, maxLeft)));
       const preferredTop = rect ? rect.top - height - 8 : 72;
       const fallbackTop = rect ? rect.bottom + 8 : 72;
       const top = preferredTop >= 8 ? preferredTop : Math.min(window.innerHeight - height - 8, Math.max(8, fallbackTop));
@@ -1479,8 +1396,11 @@ export default class AIOrganizerPlugin extends Plugin {
     const now = Date.now();
     if (existing) {
       existing.quote = quote;
-      existing.anchorFrom = anchor?.from;
-      existing.anchorTo = anchor?.to;
+      // 编辑已有便签：保留原锚点（编辑内容不应破坏定位），缺失时才补算
+      if (!existing.anchorFrom || !existing.anchorTo) {
+        existing.anchorFrom = anchor?.from;
+        existing.anchorTo = anchor?.to;
+      }
       existing.anchorLost = false;
       existing.translated = opts.translated;
       existing.thought = opts.thought;
@@ -1580,7 +1500,7 @@ export default class AIOrganizerPlugin extends Plugin {
 
   private annotationExtension(): Extension {
     const plugin = this;
-    return ViewPlugin.fromClass(
+    const annotationViewPlugin = ViewPlugin.fromClass(
       class {
         decorations: DecorationSet;
 
@@ -1602,8 +1522,32 @@ export default class AIOrganizerPlugin extends Plugin {
       },
       {
         decorations: (value) => value.decorations,
+        eventHandlers: {
+          // 单击高亮 → 正常放置光标/编辑（不拦截 mousedown）
+          // 双击高亮 → 打开该便签编辑（Zotero 式入口）
+          dblclick: (event, view) => {
+            if (event.button !== 0) return false;
+            // 让 marker 小圆点自己处理点击
+            const target = event.target as HTMLElement | null;
+            if (target?.closest(".aio-annotation-marker")) return false;
+            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+            if (pos == null) return false;
+            const self = view.plugin(annotationViewPlugin);
+            if (!self) return false;
+            let hit: AIOAnnotation | undefined;
+            self.decorations.between(pos, pos, (_from, _to, deco) => {
+              const anns = (deco.spec as any)?.annotations as AIOAnnotation[] | undefined;
+              if (anns?.length) hit = anns[0];
+            });
+            if (!hit) return false;
+            event.preventDefault();
+            plugin.showAnnotationThread(hit.filePath, hit.quote);
+            return true;
+          },
+        },
       }
     );
+    return annotationViewPlugin;
   }
 
   private buildAnnotationDecorations(view: EditorView): DecorationSet {
@@ -1627,21 +1571,22 @@ export default class AIOrganizerPlugin extends Plugin {
       const primary = resolveQuoteRange(doc, annotation);
       let from = primary ? primary.from : doc.indexOf(quote);
       if (from === -1) {
-        // 引文已被破坏：匹配剩余的最长片段，用「失效」样式标出来，而不是整条消失
+        // 引文已被破坏：匹配剩余的最长片段；主体还在则跟随高亮（正常色），剩余太少才标失效
         if (quote.length <= 300) {
           const partial = findBestPartialMatch(doc, quote);
           if (partial) {
+            const lost = !isSubstantialMatch(quote.length, partial.to - partial.from);
             const key = `${partial.from}:${partial.to}`;
             const existing = byRange.get(key);
             if (existing) {
               existing.annotations.push(annotation);
-              existing.lost = true;
+              existing.lost = existing.lost || lost;
             } else {
               byRange.set(key, {
                 from: partial.from,
                 to: partial.to,
                 annotations: [annotation],
-                lost: true,
+                lost,
               });
             }
           }
@@ -1670,6 +1615,9 @@ export default class AIOrganizerPlugin extends Plugin {
         to: range.to,
         value: Decoration.mark({
           class: range.lost ? "aio-annotation-highlight is-lost" : "aio-annotation-highlight",
+          // 供点击高亮时反查便签（Zotero 式交互）
+          annotations: range.annotations,
+          lost: range.lost,
         }),
       });
       // 标记放在引文起点、side:-1，避免遮挡行尾光标
@@ -1700,18 +1648,25 @@ export default class AIOrganizerPlugin extends Plugin {
     });
   }
 
-  /** 文本变化后核对便签引文是否仍在文档中：找不到时标记「位置失效」而不是删除（符合主流产品做法） */
+  /** 文本变化后核对便签引文是否仍在文档中：主体仍在则正常，剩余太少才标记「位置失效」（不删除） */
   private async pruneMissingAnnotations(file: TFile, contentOverride?: string): Promise<boolean> {
     const content = contentOverride ?? (await this.app.vault.cachedRead(file));
     let changed = false;
     for (const item of this.settings.annotations) {
       if (item.filePath !== file.path) continue;
-      if (item.quote.trim().length <= 1) continue;
-      const found = content.includes(item.quote.trim());
-      if (!found && !item.anchorLost) {
+      const q = item.quote.trim();
+      if (q.length <= 1) continue;
+      // 完整引文在 → 正常；被破坏时剩余主体足够长（>= 一半）也视为正常，自动跟随剩余文字
+      let lost = !content.includes(q);
+      if (lost) {
+        const partial = findBestPartialMatch(content, q);
+        const matchedLen = partial ? partial.to - partial.from : 0;
+        lost = !isSubstantialMatch(q.length, matchedLen);
+      }
+      if (lost && !item.anchorLost) {
         item.anchorLost = true;
         changed = true;
-      } else if (found && item.anchorLost) {
+      } else if (!lost && item.anchorLost) {
         item.anchorLost = false;
         changed = true;
       }
@@ -1988,7 +1943,12 @@ export default class AIOrganizerPlugin extends Plugin {
   /** 选中并滚动到便签引文 */
   private selectQuoteInEditor(editor: Editor, item: AIOAnnotation): void {
     const doc = editor.getValue();
-    const range = resolveQuoteRange(doc, item);
+    let range = resolveQuoteRange(doc, item);
+    // 引文被修改时，回退到剩余主体定位
+    if (!range) {
+      const partial = findBestPartialMatch(doc, item.quote.trim());
+      if (partial) range = partial;
+    }
     if (!range) {
       notifyError("该文本在当前笔记中不存在");
       return;
