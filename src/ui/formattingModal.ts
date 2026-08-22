@@ -1,6 +1,7 @@
-import { App, Modal, Notice, TFile, setIcon } from "obsidian";
+import { App, Modal, TFile } from "obsidian";
 import { countChanges, diffLines, type DiffOp } from "../core/diff";
 import { formatNumber } from "../utils";
+import { notifyError } from "../utils/notify";
 
 // ============================================================
 // AI 排版预览模态框（原文 / 排版后 / 差异 三视图）
@@ -79,7 +80,7 @@ export class FormattingPreviewModal extends Modal {
         await this.onApply();
         this.close();
       } catch (err: any) {
-        new Notice(`应用失败：${err?.message || err}`, 6000);
+        notifyError(`应用失败：${err?.message || err}`, 6000);
         applyBtn.setText("应用排版");
         applyBtn.disabled = false;
       }

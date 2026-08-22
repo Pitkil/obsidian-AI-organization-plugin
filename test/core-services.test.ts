@@ -132,16 +132,42 @@ describe("FormattingService", () => {
     expect(messages[1].content as string).toContain("请按我的风格排版");
   });
 
-  it("模型返回空内容时抛错", async () => {
+  it("模型连续返回空内容时抛错", async () => {
     const plugin = makeFakePlugin({ chatImpl: async () => "" });
     const svc = new FormattingService(plugin);
-    await expect(svc.format("内容", "full")).rejects.toThrow(/没有返回可用/);
+    await expect(svc.format("内容", "full")).rejects.toThrow(/未返回排版内容/);
+    expect(plugin.chatService.chat).toHaveBeenCalledTimes(2);
+    expect((plugin.chatService.chat as any).mock.calls[1][1].onStream).toBeTypeOf("function");
+  });
+
+  it("模型首次返回空内容时会自动用流式兜底", async () => {
+    let calls = 0;
+    const plugin = makeFakePlugin({
+      chatImpl: async (_messages, options) => {
+        calls += 1;
+        if (calls === 1) return "";
+        options?.onStream?.("流式兜底排版内容");
+        return "";
+      },
+    });
+    const svc = new FormattingService(plugin);
+    await expect(svc.format("内容", "full")).resolves.toBe("流式兜底排版内容\n");
   });
 
   it("丢失图片引用时抛错", async () => {
     const plugin = makeFakePlugin({ chatImpl: async () => "没有图片了" });
     const svc = new FormattingService(plugin);
     await expect(svc.format("![图](a.png)\n\n内容", "full")).rejects.toThrow(/图片/);
+  });
+
+  it("排版时保护并还原图片与嵌入引用", async () => {
+    const plugin = makeFakePlugin({
+      chatImpl: async () => "# 标题\n\nAIO_IMAGE_REF_0\n\nAIO_IMAGE_REF_1\n\n正文",
+    });
+    const svc = new FormattingService(plugin);
+    const out = await svc.format("# 标题\n\n![图](a.png)\n\n![[b.png]]\n\n正文", "full");
+    expect(out).toContain("![图](a.png)");
+    expect(out).toContain("![[b.png]]");
   });
 });
 

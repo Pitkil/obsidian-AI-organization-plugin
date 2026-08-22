@@ -1,4 +1,5 @@
-import { App, Notice, PluginSettingTab, Setting, setIcon } from "obsidian";
+import { App, PluginSettingTab, Setting, setIcon } from "obsidian";
+import { notify } from "../utils/notify";
 import type AIOrganizerPlugin from "../main";
 import type { CustomPromptTemplate, ModelKind, ModelProfile, ProviderId } from "../types";
 import { TemplateEditModal } from "./templateModal";
@@ -412,7 +413,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
     });
     activeBtn.addEventListener("click", async () => {
       if (!this.profileReady(profile)) {
-        new Notice("请先填写完整的 URL、API Key 和模型 ID");
+        notify("请填写完整的 URL、API Key 和模型 ID");
         return;
       }
       if ((profile.kind ?? "text") === "vision") {
@@ -548,6 +549,16 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
+
+    new Setting(card)
+      .setName("上下文窗口")
+      .setDesc("用于对话输入框右上角圆圈估算上下文占用；按实际模型填，例如 8192、32768、128000。")
+      .addText((text) =>
+        text.setValue(String(profile.contextWindowTokens ?? 32000)).onChange(async (value) => {
+          profile.contextWindowTokens = Math.max(1024, parseInt(value) || 32000);
+          await this.plugin.saveSettings();
+        })
+      );
   }
 
   private createEmptyProfile(providerId: ProviderId): ModelProfile {
@@ -562,6 +573,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
       model: "",
       temperature: 0.7,
       maxTokens: 4096,
+      contextWindowTokens: 32000,
     };
   }
 
@@ -578,6 +590,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
       model: isOllama ? "moondream" : "local-vision-model",
       temperature: 0.2,
       maxTokens: 1024,
+      contextWindowTokens: 8192,
     };
   }
 
@@ -677,7 +690,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         btn.setButtonText("＋ 新建模板").setCta().onClick(() => {
           new TemplateEditModal(this.app, null, async (template) => {
             if (s.formatting.customTemplates.some((t) => t.name === template.name)) {
-              new Notice("模板名称已存在，请换一个名字");
+              notify("模板名称已存在，请更换名称");
               return;
             }
             s.formatting.customTemplates.push(template);

@@ -31,6 +31,10 @@ describe("extractDelta", () => {
     ).toBe("gemini");
   });
 
+  it("解析 Anthropic text_delta", () => {
+    expect(extractDelta({ type: "content_block_delta", delta: { type: "text_delta", text: "claude" } })).toBe("claude");
+  });
+
   it("无法识别返回 null", () => {
     expect(extractDelta({ foo: "bar" })).toBeNull();
     expect(extractDelta(null)).toBeNull();
@@ -40,6 +44,16 @@ describe("extractDelta", () => {
 describe("parseNonStreamJson", () => {
   it("解析 OpenAI 响应", () => {
     expect(parseNonStreamJson({ choices: [{ message: { content: "ok" } }] })).toBe("ok");
+  });
+
+  it("OpenAI 空 content 不作为有效正文", () => {
+    expect(() => parseNonStreamJson({ choices: [{ message: { content: "" } }] })).toThrow(AIRequestError);
+  });
+
+  it("OpenAI 因 max token 截断时给出可读错误", () => {
+    expect(() =>
+      parseNonStreamJson({ choices: [{ finish_reason: "length", message: { content: "" } }] })
+    ).toThrow(/Max Token/);
   });
 
   it("解析 Ollama 响应", () => {
@@ -89,6 +103,15 @@ describe("streamLines", () => {
       (d) => deltas.push(d)
     );
     expect(deltas).toEqual(["拼接"]);
+  });
+
+  it("末尾没有换行的最后一包也会解析", async () => {
+    const deltas: string[] = [];
+    await streamLines(
+      makeSSEResponse(["data: {\"choices\":[{\"delta\":{\"content\":\"尾包\"}}]}"]),
+      (d) => deltas.push(d)
+    );
+    expect(deltas).toEqual(["尾包"]);
   });
 
   it("无 body 时抛错", async () => {

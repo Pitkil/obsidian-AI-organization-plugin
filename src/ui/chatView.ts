@@ -2,7 +2,6 @@ import {
   ItemView,
   MarkdownRenderer,
   MarkdownView,
-  Notice,
   TFile,
   WorkspaceLeaf,
   normalizePath,
@@ -10,12 +9,18 @@ import {
 } from "obsidian";
 import * as Tesseract from "tesseract.js";
 import type AIOrganizerPlugin from "../main";
+import { notify } from "../utils/notify";
 import type { ChatImagePart, ChatMessage, ModelProvider } from "../types";
+import {
+  CHAT_CONTEXT_METER_BUDGET,
+  CHAT_IMAGE_CONTEXT_ESTIMATE_CHARS,
+  CHAT_NOTE_CONTEXT_LIMIT,
+  CHAT_SELECTION_CONTEXT_LIMIT,
+} from "../core/chatService";
 import { timestamp } from "../utils";
 
 export const CHAT_VIEW_TYPE = "ai-organizer-chat-view";
 const CONFIGURE_TEXT_MODEL_VALUE = "__configure_text_model__";
-const CONTEXT_CHAR_BUDGET = 16000;
 
 function shortProviderLabel(providerId: string): string {
   if (providerId === "openaiCompatible") return "OpenAI";
@@ -42,6 +47,7 @@ export class ChatView extends ItemView {
   private contextClearBtn!: HTMLElement;
   private contextMeter!: HTMLElement;
   private contextMeterValue!: HTMLElement;
+  private attachmentBar!: HTMLElement;
   private controlsEl!: HTMLElement;
   private workbenchToggleBtn!: HTMLElement;
   private modelPicker!: HTMLElement;
@@ -52,6 +58,7 @@ export class ChatView extends ItemView {
   private workbenchCollapsed = false;
   private selectionSnapshotText = "";
   private selectionSnapshotFilePath = "";
+  private attachedImages: ChatImagePart[] = [];
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -150,6 +157,7 @@ export class ChatView extends ItemView {
     // ---- 消息区 ----
     this.messageContainer = root.createDiv({ cls: "aio-chat-messages" });
     this.messageContainer.empty();
+    this.loadConversationHistory();
 
     // ---- 输入区 ----
     const inputArea = root.createDiv({ cls: "aio-chat-input-area" });
@@ -170,16 +178,27 @@ export class ChatView extends ItemView {
     const inputWrap = inputArea.createDiv({ cls: "aio-chat-input-wrap" });
     this.inputEl = inputWrap.createEl("textarea", {
       cls: "aio-chat-input",
-      attr: { placeholder: "输入消息，Enter 发送，Shift+Enter 换行…" },
+      attr: { placeholder: "输入消息，可粘贴/拖入图片，Enter 发送…" },
     });
+    this.inputEl.addEventListener("focus", () => this.plugin.dismissSelectionToolbarForChat());
+    inputArea.addEventListener("pointerdown", () => this.plugin.dismissSelectionToolbarForChat());
     this.inputEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         this.sendMessage();
       }
     });
+    this.inputEl.addEventListener("input", () => this.refreshInputContext());
+    this.inputEl.addEventListener("paste", (evt) => void this.handlePaste(evt));
+    inputArea.addEventListener("dragover", (evt) => {
+      evt.preventDefault();
+      inputArea.addClass("is-dragging");
+    });
+    inputArea.addEventListener("dragleave", () => inputArea.removeClass("is-dragging"));
+    inputArea.addEventListener("drop", (evt) => void this.handleDrop(evt, inputArea));
     this.contextMeter = inputArea.createDiv({ cls: "aio-context-meter" });
     this.contextMeterValue = this.contextMeter.createSpan({ cls: "aio-context-meter-value", text: "0%" });
+    this.attachmentBar = inputArea.createDiv({ cls: "aio-chat-attachments is-empty" });
 
     const inputToolbar = inputArea.createDiv({ cls: "aio-input-toolbar" });
     this.modelPicker = inputToolbar.createDiv({ cls: "aio-model-picker" });
@@ -329,12 +348,14 @@ export class ChatView extends ItemView {
       this.plugin.settings.activeModelProfileId = profile.id;
       this.plugin.settings.activeProvider = profile.providerId;
       void this.plugin.saveSettings();
+      this.refreshInputContext();
       return;
     }
     const [providerId, model] = this.modelSelect.value.split("::");
     this.plugin.settings.activeProvider = providerId as any;
     this.setModelForProvider(providerId, model);
     void this.plugin.saveSettings();
+    this.refreshInputContext();
   }
 
   private refreshContextHints(): void {
@@ -390,6 +411,24 @@ export class ChatView extends ItemView {
     return content;
   }
 
+  private loadConversationHistory(): void {
+    this.messages = [...(this.plugin.settings.chat.history ?? [])];
+    for (const message of this.messages) {
+      if (typeof message.content === "string" && (message.role === "user" || message.role === "assistant")) {
+        this.addMessage(message.role, message.content);
+      }
+    }
+  }
+
+  private async persistConversationHistory(): Promise<void> {
+    const maxMessages = Math.max(1, this.plugin.settings.chat.historyMaxMessages || 80);
+    this.plugin.settings.chat.history = this.messages
+      .filter((message) => typeof message.content === "string" && (message.role === "user" || message.role === "assistant"))
+      .slice(-maxMessages);
+    await this.plugin.saveSettings();
+    this.refreshInputContext();
+  }
+
   private showTyping(): void {
     if (!this.typingEl) {
       const row = this.messageContainer.createDiv({ cls: "aio-msg aio-msg-ai" });
@@ -404,7 +443,7 @@ export class ChatView extends ItemView {
   }
 
   private hideTyping(): void {
-    this.typingEl?.remove();
+    this.typingEl?.closest(".aio-msg")?.remove();
     this.typingEl = null;
   }
 
@@ -422,35 +461,21 @@ export class ChatView extends ItemView {
       this.plugin.openSettings();
       return;
     }
-    const userInput = this.inputEl.value.trim();
+    let userInput = this.inputEl.value.trim();
+    if (!userInput && this.attachedImages.length > 0) {
+      userInput = "请分析这些图片";
+    }
     if (!userInput) return;
     this.inputEl.value = "";
+    const directImages = [...this.attachedImages];
+    this.attachedImages = [];
+    this.renderAttachments();
 
     const activeFile = this.app.workspace.getActiveFile();
     const selectedText = this.getContextSelection().trim();
     const selection = this.selToggle.checked ? selectedText : "";
-    let noteContext: { name: string; content: string } | undefined;
-    if (!selection && this.noteToggle.checked && activeFile instanceof TFile && activeFile.extension === "md") {
-      noteContext = {
-        name: activeFile.basename,
-        content: await this.app.vault.cachedRead(activeFile),
-      };
-    }
-    const imageContext = await this.buildImageContext({
-      noteContent: noteContext?.content,
-      selection,
-      sourceFile: activeFile instanceof TFile ? activeFile : null,
-    });
 
-    const messages = this.plugin.chatService.buildMessages(userInput, {
-      noteContext,
-      selection,
-      imageContext,
-    });
-    const userMsg = messages[messages.length - 1];
     this.messages.push({ role: "user", content: userInput });
-
-    // 重新以纯用户输入渲染（避免把注入的上下文显示出来）
     this.addMessage("user", userInput);
 
     this.streaming = true;
@@ -458,24 +483,54 @@ export class ChatView extends ItemView {
     this.stopBtn.removeClass("is-hidden");
     this.showTyping();
 
-    const aiContent = this.addMessage("assistant", "");
     let full = "";
+    let aiContent: HTMLElement | null = null;
     this.abortCtrl = new AbortController();
 
     try {
-      await this.plugin.chatService.chat([...messages], {
+      let noteContentForImages = "";
+      let noteContext: { name: string; content: string } | undefined;
+      if (this.noteToggle.checked && activeFile instanceof TFile && activeFile.extension === "md") {
+        noteContentForImages = await this.app.vault.cachedRead(activeFile);
+        if (!selection) {
+          noteContext = {
+            name: activeFile.basename,
+            content: noteContentForImages,
+          };
+        }
+      }
+      const imageContext = await this.buildImageContext({
+        noteContent: noteContentForImages,
+        selection,
+        promptText: userInput,
+        sourceFile: activeFile instanceof TFile ? activeFile : null,
+        directImages,
+      });
+
+      const messages = this.plugin.chatService.buildMessages(userInput, {
+        noteContext,
+        selection,
+        imageContext,
+      });
+      const requestMessages = this.withConversationHistory(messages);
+
+      this.hideTyping();
+      aiContent = this.addMessage("assistant", "");
+      await this.plugin.chatService.chat(requestMessages, {
         signal: this.abortCtrl.signal,
         profileId: this.modelSelect.value || undefined,
         onStream: (delta) => {
           full += delta;
-          this.renderStreaming(aiContent, full);
+          if (aiContent) this.renderStreaming(aiContent, full);
         },
       });
       if (!full.trim()) {
-        aiContent.setText("（未返回内容）");
+        aiContent?.setText("（未返回内容）");
         full = "（未返回内容）";
       }
     } catch (err: any) {
+      this.hideTyping();
+      if (!aiContent) aiContent = this.addMessage("assistant", "");
       if (this.abortCtrl.signal.aborted) {
         full = full || "（已停止）";
       } else {
@@ -485,6 +540,7 @@ export class ChatView extends ItemView {
       }
     } finally {
       this.messages.push({ role: "assistant", content: full });
+      await this.persistConversationHistory();
       this.hideTyping();
       this.streaming = false;
       this.sendBtn.removeClass("is-hidden");
@@ -498,6 +554,73 @@ export class ChatView extends ItemView {
     el.empty();
     void MarkdownRenderer.render(this.app, text, el, "", this);
     this.scrollToBottom();
+  }
+
+  private async handlePaste(evt: ClipboardEvent): Promise<void> {
+    const files = Array.from(evt.clipboardData?.files ?? []).filter((file) => file.type.startsWith("image/"));
+    if (files.length === 0) return;
+    evt.preventDefault();
+    await this.addImageFiles(files);
+  }
+
+  private async handleDrop(evt: DragEvent, inputArea: HTMLElement): Promise<void> {
+    evt.preventDefault();
+    inputArea.removeClass("is-dragging");
+    const files = Array.from(evt.dataTransfer?.files ?? []).filter((file) => file.type.startsWith("image/") || this.isImagePath(file.name));
+    if (files.length === 0) return;
+    await this.addImageFiles(files);
+  }
+
+  private async addImageFiles(files: File[]): Promise<void> {
+    const maxImages = this.clampNumber(this.plugin.settings.imageOrg.visionMaxImages, 1, 200, 20);
+    const slots = Math.max(0, maxImages - this.attachedImages.length);
+    const selected = files.slice(0, slots);
+    if (selected.length < files.length) {
+      notify(`最多附加 ${maxImages} 张图片，其余已忽略`);
+    }
+    for (const file of selected) {
+      const image = await this.fileObjectToImagePart(file);
+      if (image) this.attachedImages.push(image);
+    }
+    this.renderAttachments();
+    this.refreshInputContext();
+    this.inputEl.focus();
+  }
+
+  private async fileObjectToImagePart(file: File): Promise<ChatImagePart | null> {
+    const maxSizeMB = this.clampNumber(this.plugin.settings.imageOrg.visionMaxImageSizeMB, 1, 50, 5);
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      notify(`图片过大，已跳过：${file.name}`);
+      return null;
+    }
+    const data = await file.arrayBuffer();
+    return {
+      type: "image",
+      mimeType: file.type || this.mimeForImage(file.name.split(".").pop() || "png"),
+      data: this.arrayBufferToBase64(data),
+      name: file.name || `粘贴图片-${this.attachedImages.length + 1}.png`,
+    };
+  }
+
+  private renderAttachments(): void {
+    if (!this.attachmentBar) return;
+    this.attachmentBar.empty();
+    this.attachmentBar.toggleClass("is-empty", this.attachedImages.length === 0);
+    for (const image of this.attachedImages) {
+      const chip = this.attachmentBar.createDiv({ cls: "aio-attachment-chip" });
+      setIcon(chip.createSpan({ cls: "aio-attachment-icon" }), "image");
+      chip.createSpan({ cls: "aio-attachment-name", text: image.name || "图片" });
+      const removeBtn = chip.createEl("button", {
+        cls: "aio-attachment-remove",
+        attr: { type: "button", title: "移除图片", "aria-label": "移除图片" },
+      });
+      setIcon(removeBtn, "x");
+      removeBtn.addEventListener("click", () => {
+        this.attachedImages = this.attachedImages.filter((item) => item !== image);
+        this.renderAttachments();
+        this.refreshInputContext();
+      });
+    }
   }
 
   private activeProvider(): ModelProvider | undefined {
@@ -563,21 +686,30 @@ export class ChatView extends ItemView {
   private async buildImageContext(opts: {
     noteContent?: string;
     selection?: string;
+    promptText?: string;
     sourceFile: TFile | null;
+    directImages?: ChatImagePart[];
   }): Promise<string> {
     const sourcePath = opts.sourceFile?.path ?? "";
     const refs = [
       ...this.extractImageRefs(opts.noteContent ?? ""),
       ...this.extractImageRefs(opts.selection ?? ""),
+      ...this.extractImageRefs(opts.promptText ?? ""),
     ];
     const allRefs = Array.from(new Set(refs));
-    if (allRefs.length === 0) return "";
     const maxImages = this.clampNumber(this.plugin.settings.imageOrg.visionMaxImages, 1, 200, 20);
     const maxSizeMB = this.clampNumber(this.plugin.settings.imageOrg.visionMaxImageSizeMB, 1, 50, 5);
-    const uniqueRefs = allRefs.slice(0, maxImages);
-    const omittedRefs = allRefs.slice(maxImages);
+    const images: ChatImagePart[] = (opts.directImages ?? []).slice(0, maxImages);
+    const remainingSlots = Math.max(0, maxImages - images.length);
+    const uniqueRefs = allRefs.slice(0, remainingSlots);
+    const omittedRefs = [
+      ...allRefs.slice(remainingSlots),
+      ...(opts.directImages && opts.directImages.length > maxImages
+        ? opts.directImages.slice(maxImages).map((image) => image.name || "对话附件")
+        : []),
+    ];
+    if (allRefs.length === 0 && images.length === 0) return "";
 
-    const images: ChatImagePart[] = [];
     const unresolved: string[] = [];
     const oversized: string[] = [];
     for (const ref of uniqueRefs) {
@@ -594,14 +726,14 @@ export class ChatView extends ItemView {
       }
     }
 
-    const sourceName = opts.sourceFile?.basename ?? "选中文本";
+    const sourceName = opts.sourceFile?.basename ?? (images.length ? "对话附件" : "选中文本");
     const analyzed = await this.plugin.chatService.analyzeImages(images, sourceName);
     const needsOcr =
       images.length > 0 &&
       (!this.hasActiveVisionModel() || /未配置视觉模型|视觉模型分析失败/.test(analyzed));
     const ocrText = needsOcr ? await this.runOcrFallback(images) : "";
     const notes: string[] = [
-      `图片统计：共检测到 ${allRefs.length} 张；本次最多解析 ${maxImages} 张；实际发送视觉模型 ${images.length} 张。`,
+      `图片统计：笔记/选区链接 ${allRefs.length} 张，直接附件 ${opts.directImages?.length ?? 0} 张；本次最多解析 ${maxImages} 张；实际发送视觉模型 ${images.length} 张。`,
     ];
     if (omittedRefs.length > 0) notes.push(`超过上限未解析 ${omittedRefs.length} 张：${omittedRefs.join("、")}`);
     if (oversized.length > 0) notes.push(`超过单张 ${maxSizeMB}MB 未解析 ${oversized.length} 张：${oversized.join("、")}`);
@@ -713,7 +845,7 @@ export class ChatView extends ItemView {
   private async translateSelection(): Promise<void> {
     const selection = this.getContextSelection().trim();
     if (!selection) {
-      new Notice("请先在编辑器中选中要翻译的文本");
+      notify("请先在编辑器中选中文本");
       return;
     }
     await this.plugin.translateText(selection);
@@ -723,41 +855,106 @@ export class ChatView extends ItemView {
     if (!this.contextChipText) return;
     const selection = this.getContextSelection().trim();
     const activeFile = this.app.workspace.getActiveFile();
+    const baseTokens = this.historyContextTokens() + this.currentInputTokens();
+    const attachedImageCount = this.attachedImages.length;
+    const attachedImageTokens = attachedImageCount * this.estimateContextTokens(CHAT_IMAGE_CONTEXT_ESTIMATE_CHARS);
     if (selection) {
       const imageCount = this.extractImageRefs(selection).length;
-      this.contextChipText.setText(`选中文本 · ${selection.length} 字${imageCount ? ` · 图片 ${imageCount}` : ""}`);
+      const totalImages = imageCount + attachedImageCount;
+      this.contextChipText.setText(`选中文本 · ${selection.length} 字${totalImages ? ` · 图片 ${totalImages}` : ""}`);
       this.contextChip.setAttr("title", selection.slice(0, 240));
       this.contextChip.addClass("is-active");
       this.contextClearBtn.removeClass("is-hidden");
       this.setToggleState(this.selToggle, true);
-      this.updateContextMeter(selection.length + imageCount * 800, `选中文本 ${selection.length} 字${imageCount ? `，图片约 ${imageCount} 张` : ""}`);
+      const injectedChars = Math.min(selection.length, CHAT_SELECTION_CONTEXT_LIMIT);
+      this.updateContextMeter(
+        baseTokens + this.estimateContextTokens(injectedChars) + (imageCount * this.estimateContextTokens(CHAT_IMAGE_CONTEXT_ESTIMATE_CHARS)) + attachedImageTokens,
+        `选中文本 ${selection.length} 字，实际注入约 ${injectedChars} 字${totalImages ? `，图片约 ${totalImages} 张` : ""}，含历史与输入`
+      );
       return;
     }
     if (this.noteToggle.checked && activeFile instanceof TFile) {
-      this.contextChipText.setText(`# ${activeFile.basename}`);
+      this.contextChipText.setText(`# ${activeFile.basename}${attachedImageCount ? ` · 图片 ${attachedImageCount}` : ""}`);
       this.contextChip.setAttr("title", activeFile.path);
       this.contextChip.addClass("is-active");
       this.contextClearBtn.addClass("is-hidden");
-      this.updateContextMeter(activeFile.stat.size, `当前笔记约 ${activeFile.stat.size} 字节`);
+      const injectedChars = Math.min(activeFile.stat.size, CHAT_NOTE_CONTEXT_LIMIT);
+      this.updateContextMeter(
+        baseTokens + this.estimateContextTokens(injectedChars) + attachedImageTokens,
+        `当前笔记 ${activeFile.basename}，实际注入最多约 ${injectedChars} 字${attachedImageCount ? `，附件图片约 ${attachedImageCount} 张` : ""}，含历史与输入`
+      );
+      return;
+    }
+    if (attachedImageCount > 0) {
+      this.contextChipText.setText(`图片附件 · ${attachedImageCount}`);
+      this.contextChip.setAttr("title", this.attachedImages.map((image) => image.name || "图片").join("、"));
+      this.contextChip.addClass("is-active");
+      this.contextClearBtn.addClass("is-hidden");
+      this.updateContextMeter(baseTokens + attachedImageTokens, `附件图片约 ${attachedImageCount} 张，含历史与输入`);
       return;
     }
     this.contextChipText.setText("无上下文");
     this.contextChip.setAttr("title", "未注入上下文");
     this.contextChip.removeClass("is-active");
     this.contextClearBtn.addClass("is-hidden");
-    this.updateContextMeter(0, "未注入上下文");
+    this.updateContextMeter(baseTokens, baseTokens > 0 ? "仅会话历史与当前输入" : "未注入上下文");
   }
 
   private updateContextMeter(chars: number, label: string): void {
     if (!this.contextMeter || !this.contextMeterValue) return;
-    const percent = Math.max(0, Math.min(100, Math.round((chars / CONTEXT_CHAR_BUDGET) * 100)));
-    const summary = `${label}，约占上下文 ${percent}%`;
+    const usedTokens = Math.max(0, Math.round(chars));
+    const contextWindow = this.activeContextWindowTokens();
+    const percent = Math.max(0, Math.min(100, Math.round((usedTokens / contextWindow) * 100)));
+    const summary = `${label}；估算 ${usedTokens}/${contextWindow} tokens，约占上下文 ${percent}%`;
     this.contextMeter.style.setProperty("--aio-context-percent", `${percent}%`);
     this.contextMeterValue.setText("");
     this.contextMeter.setAttr("title", summary);
     this.contextMeter.setAttr("aria-label", summary);
     this.contextMeter.toggleClass("is-warn", percent >= 70 && percent < 90);
     this.contextMeter.toggleClass("is-danger", percent >= 90);
+  }
+
+  private activeContextWindowTokens(): number {
+    const activeId = this.modelSelect?.value || this.plugin.settings.activeTextModelProfileId;
+    const profile = this.plugin.settings.modelProfiles.find((item) => item.id === activeId);
+    const n = Number(profile?.contextWindowTokens);
+    return Number.isFinite(n) && n >= 1024 ? Math.floor(n) : CHAT_CONTEXT_METER_BUDGET;
+  }
+
+  private estimateContextTokens(chars: number): number {
+    return Math.ceil(chars / 2);
+  }
+
+  private currentInputTokens(): number {
+    return this.estimateContextTokens(this.inputEl?.value?.trim().length ?? 0);
+  }
+
+  private historyContextTokens(): number {
+    return this.messages.reduce((sum, message) => {
+      if (typeof message.content !== "string") return sum;
+      return sum + this.estimateContextTokens(message.content.length);
+    }, 0);
+  }
+
+  private withConversationHistory(currentMessages: ChatMessage[]): ChatMessage[] {
+    const [systemMessage, currentUserMessage] = currentMessages;
+    if (!systemMessage || !currentUserMessage) return currentMessages;
+
+    const windowTokens = this.activeContextWindowTokens();
+    const historyBudget = Math.max(512, Math.floor(windowTokens * 0.35));
+    const selectedHistory: ChatMessage[] = [];
+    let used = 0;
+
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      const message = this.messages[i];
+      if (typeof message.content !== "string") continue;
+      const cost = this.estimateContextTokens(message.content.length);
+      if (used + cost > historyBudget) break;
+      selectedHistory.unshift(message);
+      used += cost;
+    }
+
+    return [systemMessage, ...selectedHistory, currentUserMessage];
   }
 
   private modelsForProvider(providerId: string): string[] {
@@ -796,7 +993,7 @@ export class ChatView extends ItemView {
 
   private async saveConversation(): Promise<void> {
     if (this.messages.length === 0) {
-      new Notice("当前没有可保存的对话");
+      notify("暂无对话可保存");
       return;
     }
     const title = `AI 对话 ${timestamp()}`;
@@ -805,6 +1002,8 @@ export class ChatView extends ItemView {
 
   private clearConversation(): void {
     this.messages = [];
+    this.plugin.settings.chat.history = [];
+    void this.plugin.saveSettings();
     this.abortCtrl?.abort();
     this.hideTyping();
     this.showEmptyState();

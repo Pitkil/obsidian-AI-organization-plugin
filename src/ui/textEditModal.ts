@@ -1,4 +1,5 @@
-import { App, Modal, Notice, setIcon } from "obsidian";
+import { App, Modal, setIcon } from "obsidian";
+import { notifyError } from "../utils/notify";
 import type { TextEditOp } from "../types";
 
 // ============================================================
@@ -78,7 +79,7 @@ export class TextEditModal extends Modal {
         await this.onApply(this.result);
         this.close();
       } catch (err: any) {
-        new Notice(`应用失败：${err?.message || err}`, 6000);
+        notifyError(`应用失败：${err?.message || err}`, 6000);
         this.applyBtn.disabled = false;
         this.applyBtn.setText("应用到选中文本");
       }

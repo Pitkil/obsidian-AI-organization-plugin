@@ -1,5 +1,6 @@
-import { App, Modal, Notice, TFile } from "obsidian";
+import { App, Modal, TFile } from "obsidian";
 import type { BatchOperation } from "../types";
+import { notify } from "../utils/notify";
 
 // ============================================================
 // 批量 AI 处理模态框（选择文件 + 操作类型 + 进度）
@@ -74,7 +75,7 @@ export class BatchModal extends Modal {
     runBtn.addEventListener("click", async () => {
       const chosen = this.files.filter((f) => this.selected.has(f.path));
       if (chosen.length === 0) {
-        new Notice("请至少选择一篇笔记");
+        notify("请至少选择一篇笔记");
         return;
       }
       this.close();

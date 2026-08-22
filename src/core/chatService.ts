@@ -1,8 +1,14 @@
-import { Notice, TFile } from "obsidian";
+import { TFile } from "obsidian";
 import type AIOrganizerPlugin from "../main";
 import type { ChatImagePart, ChatMessage, ChatOptions, ModelKind, ModelProfile, ModelProvider } from "../types";
 import { getActiveProvider } from "../providers";
 import { timestamp } from "../utils";
+import { notifySuccess } from "../utils/notify";
+
+export const CHAT_NOTE_CONTEXT_LIMIT = 4000;
+export const CHAT_SELECTION_CONTEXT_LIMIT = 4000;
+export const CHAT_CONTEXT_METER_BUDGET = CHAT_NOTE_CONTEXT_LIMIT + CHAT_SELECTION_CONTEXT_LIMIT;
+export const CHAT_IMAGE_CONTEXT_ESTIMATE_CHARS = 800;
 
 // ============================================================
 // 对话服务：统一入口，负责取提供商、注入上下文、保存对话
@@ -122,7 +128,10 @@ export class ChatService {
 
     if (opts.noteContext) {
       const content = opts.noteContext.content.trim();
-      const snippet = content.length > 4000 ? content.slice(0, 4000) + "\n…[过长已截断]…" : content;
+      const snippet =
+        content.length > CHAT_NOTE_CONTEXT_LIMIT
+          ? content.slice(0, CHAT_NOTE_CONTEXT_LIMIT) + "\n…[过长已截断]…"
+          : content;
       contextParts.push(
         `【当前笔记：${opts.noteContext.name}】\n\`\`\`markdown\n${snippet}\n\`\`\``
       );
@@ -130,7 +139,7 @@ export class ChatService {
 
     if (opts.selection && opts.selection.trim()) {
       contextParts.push(
-        `【用户选中文本】\n\`\`\`\n${opts.selection.trim().slice(0, 4000)}\n\`\`\``
+        `【用户选中文本】\n\`\`\`\n${opts.selection.trim().slice(0, CHAT_SELECTION_CONTEXT_LIMIT)}\n\`\`\``
       );
     }
 
@@ -206,7 +215,7 @@ export class ChatService {
 
     const fileName = `${folder}/${title || `AI 对话 ${timestamp()}`}.md`;
     const file = await this.plugin.app.vault.create(fileName, lines.join("\n"));
-    new Notice(`对话已保存：${file.path}`);
+    notifySuccess(`对话已保存：${file.path}`);
     return file;
   }
 

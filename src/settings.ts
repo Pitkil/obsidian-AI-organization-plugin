@@ -1,5 +1,5 @@
 import { Plugin } from "obsidian";
-import type { CustomPromptTemplate, ModelProfile, ProviderId } from "./types";
+import type { ChatMessage, CustomPromptTemplate, ModelProfile, ProviderId } from "./types";
 
 // ============================================================
 // 插件设置结构
@@ -136,6 +136,10 @@ export interface AIOrganizerSettings {
     injectSelection: boolean;
     /** 系统提示词 */
     systemPrompt: string;
+    /** 侧边栏最近会话，重进插件后恢复 */
+    history: ChatMessage[];
+    /** 最多保留多少条侧边栏历史消息 */
+    historyMaxMessages: number;
   };
 
   // ---------- 浏览位置记忆 ----------
@@ -234,6 +238,8 @@ export const DEFAULT_SETTINGS: AIOrganizerSettings = {
     injectSelection: true,
     systemPrompt:
       "你是一个嵌入在 Obsidian 中的 AI 助手「AI Organizer」。回答要简洁、准确、结构清晰，默认使用中文。涉及 Markdown 时请输出规范的 Markdown 语法，便于直接写入笔记。",
+    history: [],
+    historyMaxMessages: 80,
   },
 
   scrollRestore: {
@@ -281,6 +287,10 @@ export function normalizeSettings(settings: AIOrganizerSettings): AIOrganizerSet
   settings.annotations = (settings.annotations ?? []).filter(
     (item) => item && item.filePath && item.quote && item.type
   );
+  settings.chat.history = (settings.chat.history ?? [])
+    .filter((item) => item && (item.role === "user" || item.role === "assistant") && typeof item.content === "string")
+    .slice(-Math.max(1, Number(settings.chat.historyMaxMessages) || 80));
+  settings.chat.historyMaxMessages = Math.max(1, Number(settings.chat.historyMaxMessages) || 80);
 
   // 浏览位置持久化：兼容旧数据（无 positions 字段时给空对象）
   if (!settings.scrollRestore.positions || typeof settings.scrollRestore.positions !== "object") {
@@ -301,6 +311,7 @@ export function normalizeSettings(settings: AIOrganizerSettings): AIOrganizerSet
       enabled: profile.enabled !== false,
       apiKey: profile.apiKey ?? "",
       model: profile.model ?? "",
+      contextWindowTokens: normalizeContextWindow(profile.contextWindowTokens, profile.model),
     }));
 
   if (settings.modelProfiles.length === 0) {
@@ -371,8 +382,23 @@ function migrateLegacyProfile(settings: AIOrganizerSettings, providerId: Provide
     model: cfg.model,
     temperature: cfg.temperature,
     maxTokens: cfg.maxTokens,
+    contextWindowTokens: inferContextWindowTokens(cfg.model),
   };
   if (isProfileUsable(profile)) settings.modelProfiles.push(profile);
+}
+
+function normalizeContextWindow(value: number | undefined, model = ""): number {
+  const n = Number(value);
+  if (Number.isFinite(n) && n >= 1024) return Math.floor(n);
+  return inferContextWindowTokens(model);
+}
+
+function inferContextWindowTokens(model: string): number {
+  const normalized = model.toLowerCase();
+  if (/claude|gemini|gpt-4\.1|gpt-4o|qwen|moonshot|kimi|glm/.test(normalized)) return 128000;
+  if (/deepseek|llama|mistral|mixtral|yi|internlm/.test(normalized)) return 64000;
+  if (/embedding|embed/.test(normalized)) return 8192;
+  return 32000;
 }
 
 function isProfileUsable(profile: ModelProfile): boolean {

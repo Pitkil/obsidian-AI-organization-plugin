@@ -1,6 +1,7 @@
-import { Editor, EditorPosition, MarkdownView, Notice, Plugin, TFile, setIcon } from "obsidian";
+import { Editor, EditorPosition, MarkdownView, Plugin, TFile, setIcon } from "obsidian";
 import { computeQuoteAnchor, findBestPartialMatch, posFromOffset, resolveQuoteRange } from "./utils/position";
 import { capScrollPositions, selectionSignature } from "./utils";
+import { notify, notifyError, notifyLoading, notifySuccess } from "./utils/notify";
 import { StateEffect } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
@@ -43,6 +44,10 @@ export interface AIOSelectionSnapshot {
   from: { line: number; ch: number };
   to: { line: number; ch: number };
   createdAt: number;
+}
+
+function samePosition(a: EditorPosition, b: EditorPosition): boolean {
+  return a.line === b.line && a.ch === b.ch;
 }
 
 const annotationRefreshEffect = StateEffect.define<void>();
@@ -151,7 +156,7 @@ export default class AIOrganizerPlugin extends Plugin {
 
     // 排版前校验配置（温和提示）
     if (!getActiveProvider(this.settings, this.providers)) {
-      new Notice("AI Organizer：尚未配置模型，请到设置中填写 API Key");
+      notify("尚未配置模型，请在设置中填写 API Key");
     }
   }
 
@@ -247,12 +252,12 @@ export default class AIOrganizerPlugin extends Plugin {
       name: "AI 翻译选中文本",
       editorCallback: (_editor, view) => {
         if (!view.editor) {
-          new Notice("请先在编辑器中选中要翻译的文本");
+          notify("请先在编辑器中选中文本");
           return;
         }
         const sel = view.editor.getSelection();
         if (!sel) {
-          new Notice("请先在编辑器中选中要翻译的文本");
+          notify("请先在编辑器中选中文本");
           return;
         }
         void app.translateText(sel);
@@ -264,12 +269,12 @@ export default class AIOrganizerPlugin extends Plugin {
       name: "AI 编辑选中文本（润色/扩写/续写/压缩）",
       editorCallback: (_editor, view) => {
         if (!view.editor) {
-          new Notice("请先在编辑器中选中要编辑的文本");
+          notify("请先在编辑器中选中文本");
           return;
         }
         const sel = view.editor.getSelection();
         if (!sel) {
-          new Notice("请先在编辑器中选中要编辑的文本");
+          notify("请先在编辑器中选中文本");
           return;
         }
         const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -326,9 +331,21 @@ export default class AIOrganizerPlugin extends Plugin {
     this.hideSelectionToolbar();
   }
 
+  dismissSelectionToolbarForChat(): void {
+    this.selectionToolbarSuppressedUntil = Date.now() + 1500;
+    this.selectionToolbarEl?.remove();
+    this.selectionToolbarEl = null;
+  }
+
   private registerSelectionToolbar(): void {
     const scheduleUpdate = () => window.setTimeout(() => this.updateSelectionToolbar(), 0);
+    const scheduleSelectionUpdate = () => {
+      window.setTimeout(() => this.updateSelectionToolbar(), 80);
+      window.setTimeout(() => this.updateSelectionToolbar(), 180);
+    };
     this.registerDomEvent(document, "mouseup", scheduleUpdate);
+    this.registerDomEvent(document, "pointerup", scheduleUpdate);
+    this.registerDomEvent(document, "selectionchange", scheduleSelectionUpdate);
     this.registerDomEvent(document, "keyup", (evt: KeyboardEvent) => {
       if (evt.key === "Escape") {
         this.closeSelectionToolbar();
@@ -343,6 +360,11 @@ export default class AIOrganizerPlugin extends Plugin {
       const target = evt.target;
       if (target instanceof Node && this.selectionToolbarEl?.contains(target)) return;
       if (target instanceof Node && this.translationPopupEl?.contains(target)) return;
+      if (target instanceof HTMLElement && target.closest(".aio-chat")) {
+        this.dismissSelectionToolbarForChat();
+        this.hideTranslationPopup();
+        return;
+      }
       this.hideSelectionToolbar();
       this.hideTranslationPopup();
     });
@@ -385,89 +407,147 @@ export default class AIOrganizerPlugin extends Plugin {
       return;
     }
 
-    const selected = mdView.editor.getSelection().trim();
-    if (!selected) {
+    const snapshot = this.readActiveSelectionSnapshot(mdView);
+    if (!snapshot) {
       this.hideSelectionToolbar();
       return;
     }
 
     // 手动关闭后，同一个选区不再自动弹出
-    const from = mdView.editor.getCursor("from");
-    const to = mdView.editor.getCursor("to");
-    const signature = selectionSignature(file.path, from, to, selected);
+    const signature = selectionSignature(file.path, snapshot.from, snapshot.to, snapshot.text);
     if (this.selectionToolbarClosedSignature === signature) {
       this.selectionToolbarEl?.removeClass("is-visible");
       return;
     }
     this.selectionToolbarClosedSignature = null;
 
-    this.selectionSnapshot = {
-      text: selected,
-      filePath: file.path,
-      from,
-      to,
-      createdAt: Date.now(),
-    };
+    this.selectionSnapshot = snapshot;
 
     const toolbar = this.ensureSelectionToolbar();
     toolbar.addClass("is-visible");
     this.positionSelectionToolbar(toolbar);
   }
 
+  private readActiveSelectionSnapshot(mdView: MarkdownView): AIOSelectionSnapshot | null {
+    const file = mdView.file;
+    if (!(file instanceof TFile) || !mdView.editor) return null;
+
+    const editorText = mdView.editor.getSelection().trim();
+    if (editorText) {
+      return {
+        text: editorText,
+        filePath: file.path,
+        from: mdView.editor.getCursor("from"),
+        to: mdView.editor.getCursor("to"),
+        createdAt: Date.now(),
+      };
+    }
+
+    const domText = this.activeDomSelectionText();
+    if (!domText) return null;
+    const cursor = mdView.editor.getCursor();
+    return {
+      text: domText,
+      filePath: file.path,
+      from: cursor,
+      to: cursor,
+      createdAt: Date.now(),
+    };
+  }
+
+  private activeDomSelectionText(): string {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return "";
+    const text = selection.toString().trim();
+    if (!text) return "";
+    const anchor = selection.anchorNode;
+    const focus = selection.focusNode;
+    if ((anchor && this.selectionToolbarEl?.contains(anchor)) || (focus && this.selectionToolbarEl?.contains(focus))) return "";
+    if ((anchor && this.translationPopupEl?.contains(anchor)) || (focus && this.translationPopupEl?.contains(focus))) return "";
+    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!mdView) return "";
+    const inActiveView = (node: Node | null) => !!node && mdView.contentEl.contains(node);
+    return inActiveView(anchor) || inActiveView(focus) ? text : "";
+  }
+
   private ensureSelectionToolbar(): HTMLElement {
     if (this.selectionToolbarEl) return this.selectionToolbarEl;
 
     const toolbar = document.body.createDiv({ cls: "aio-selection-toolbar" });
-    toolbar.createSpan({ cls: "aio-selection-origin", text: "选中文字" });
-    toolbar.addEventListener("mousedown", (evt) => {
+    const aiRow = toolbar.createDiv({ cls: "aio-selection-row aio-selection-ai-row" });
+    const formatRow = toolbar.createDiv({ cls: "aio-selection-row aio-selection-format-row" });
+    aiRow.createSpan({ cls: "aio-selection-origin", text: "选中文字" });
+    toolbar.addEventListener("pointerdown", (evt) => {
       const target = evt.target;
+      if (target instanceof HTMLElement && target.closest(".aio-selection-close")) return;
       if (target instanceof HTMLElement && target.closest(".aio-selection-lang")) return;
       evt.preventDefault();
     });
 
-    const langSelect = this.createSelectionLanguageSelect(toolbar);
-    this.createSelectionAction(toolbar, "翻译", "languages", "翻译选中文本", () => {
+    const langSelect = this.createSelectionLanguageSelect(aiRow);
+    this.createSelectionAction(aiRow, "翻译", "languages", "翻译选中文本", () => {
       const snapshot = this.getSelectionSnapshot();
       this.hideSelectionToolbar();
       if (snapshot) void this.translateText(snapshot.text, snapshot, langSelect.value || this.settings.translate.defaultTarget);
     });
-    this.createSelectionAction(toolbar, "解释", "book-open", "解释选中文本", () => {
+    this.createSelectionAction(aiRow, "解释", "book-open", "解释选中文本", () => {
       const snapshot = this.getSelectionSnapshot();
       this.hideSelectionToolbar();
       if (snapshot) void this.askSelectionInChat(snapshot);
     });
-    this.createSelectionAction(toolbar, "润色", "wand-2", "润色选中文本", () => {
+    this.createSelectionAction(aiRow, "润色", "wand-2", "润色选中文本", () => {
       const snapshot = this.getSelectionSnapshot();
       this.hideSelectionToolbar();
       if (snapshot) this.openSelectionEditModal(snapshot, "polish");
     });
-    this.createSelectionAction(toolbar, "扩写", "expand", "扩写选中文本", () => {
+    this.createSelectionAction(aiRow, "扩写", "expand", "扩写选中文本", () => {
       const snapshot = this.getSelectionSnapshot();
       this.hideSelectionToolbar();
       if (snapshot) this.openSelectionEditModal(snapshot, "expand");
     });
-    this.createSelectionAction(toolbar, "总结", "list", "总结选中文本", () => {
+    this.createSelectionAction(aiRow, "总结", "list", "总结选中文本", () => {
       const snapshot = this.getSelectionSnapshot();
       this.hideSelectionToolbar();
       if (snapshot) this.openSelectionEditModal(snapshot, "summarize");
     });
-    this.createSelectionAction(toolbar, "便签", "sticky-note", "给选中文本插入自己的想法", () => {
+    this.createSelectionAction(aiRow, "便签", "sticky-note", "给选中文本插入自己的想法", () => {
       const snapshot = this.getSelectionSnapshot();
       this.hideSelectionToolbar();
       if (snapshot) this.showThoughtNotePopup(snapshot);
     });
-    this.createSelectionAction(toolbar, "询问", "message-square", "把选中文本放入对话上下文", () => {
+    this.createSelectionAction(aiRow, "询问", "message-square", "把选中文本放入对话上下文", () => {
       const snapshot = this.getSelectionSnapshot();
       this.hideSelectionToolbar();
       if (snapshot) void this.focusSelectionInChat(snapshot);
     });
-    const closeBtn = toolbar.createEl("button", {
+    const closeBtn = aiRow.createEl("button", {
       cls: "aio-selection-close",
       attr: { type: "button", title: "关闭", "aria-label": "关闭选中文本工具栏" },
     });
     closeBtn.setText("×");
-    closeBtn.addEventListener("mousedown", (evt) => this.closeSelectionToolbar(evt));
-    closeBtn.addEventListener("click", (evt) => this.closeSelectionToolbar(evt));
+    const close = (evt: Event) => this.closeSelectionToolbar(evt);
+    closeBtn.addEventListener("pointerdown", close, { capture: true });
+    closeBtn.addEventListener("mousedown", close, { capture: true });
+    closeBtn.addEventListener("click", close, { capture: true });
+
+    this.createFormatButton(formatRow, "undo-2", "撤销", () => this.runEditorCommand((editor) => editor.undo()));
+    this.createFormatButton(formatRow, "redo-2", "重做", () => this.runEditorCommand((editor) => editor.redo()));
+    this.createFormatButton(formatRow, "H2", "二级标题", () => this.toggleHeadingSelection(2));
+    this.createFormatButton(formatRow, "H3", "三级标题", () => this.toggleHeadingSelection(3));
+    this.createFormatButton(formatRow, "type", "正文", () => this.toggleHeadingSelection(0));
+    this.createFormatButton(formatRow, "bold", "加粗", () => this.toggleWrappedSelection("**", "**"));
+    this.createFormatButton(formatRow, "italic", "斜体", () => this.toggleWrappedSelection("*", "*"));
+    this.createFormatButton(formatRow, "strikethrough", "删除线", () => this.toggleWrappedSelection("~~", "~~"));
+    this.createFormatButton(formatRow, "underline", "下划线", () => this.toggleWrappedSelection("<u>", "</u>"));
+    this.createFormatButton(formatRow, "code-2", "行内代码", () => this.toggleWrappedSelection("`", "`"));
+    this.createFormatButton(formatRow, "highlighter", "荧光笔", () => this.toggleWrappedSelection("==", "=="));
+    this.createFormatButton(formatRow, "link", "链接", () => this.toggleWrappedSelection("[", "](url)"));
+    this.createFormatButton(formatRow, "table-2", "表格", () => this.insertAfterSelection("\n\n| 列 1 | 列 2 |\n| --- | --- |\n|  |  |\n"));
+    this.createColorButton(formatRow, "#b42318", "红色文字", (text) => this.toggleColorMarkup(text, "color", "#b42318"), "text");
+    this.createColorButton(formatRow, "#08796f", "绿色文字", (text) => this.toggleColorMarkup(text, "color", "#08796f"), "text");
+    this.createColorButton(formatRow, "#2563eb", "蓝色文字", (text) => this.toggleColorMarkup(text, "color", "#2563eb"), "text");
+    this.createColorButton(formatRow, "#fff1a8", "黄色高亮", (text) => this.toggleColorMarkup(text, "background", "#fff1a8"), "mark");
+    this.createFormatButton(formatRow, "eraser", "清除简单格式", () => this.clearBasicFormat());
 
     this.selectionToolbarEl = toolbar;
     return toolbar;
@@ -508,7 +588,138 @@ export default class AIOrganizerPlugin extends Plugin {
     });
     setIcon(btn.createSpan({ cls: "aio-selection-action-icon" }), icon);
     btn.createSpan({ text: label });
+    btn.addEventListener("pointerdown", (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+    });
     btn.addEventListener("click", onClick);
+  }
+
+  private createFormatButton(
+    toolbar: HTMLElement,
+    iconOrText: string,
+    title: string,
+    onClick: () => void
+  ): void {
+    const btn = toolbar.createEl("button", {
+      cls: "aio-format-btn",
+      attr: { type: "button", title, "aria-label": title },
+    });
+    if (/^H\d$/.test(iconOrText)) {
+      btn.createSpan({ cls: "aio-format-text", text: iconOrText });
+    } else {
+      setIcon(btn.createSpan({ cls: "aio-format-icon" }), iconOrText);
+    }
+    btn.addEventListener("pointerdown", (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+    });
+    btn.addEventListener("click", () => {
+      onClick();
+      this.selectionToolbarSuppressedUntil = Date.now() + 900;
+    });
+  }
+
+  private createColorButton(
+    toolbar: HTMLElement,
+    color: string,
+    title: string,
+    transform: (text: string) => string,
+    type: "text" | "mark"
+  ): void {
+    const btn = toolbar.createEl("button", {
+      cls: `aio-format-btn aio-color-btn is-${type}`,
+      attr: { type: "button", title, "aria-label": title },
+    });
+    btn.style.setProperty("--aio-swatch", color);
+    btn.createSpan({ cls: "aio-color-swatch" });
+    btn.addEventListener("pointerdown", (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+    });
+    btn.addEventListener("click", () => this.transformSnapshotSelection(transform));
+  }
+
+  private runEditorCommand(action: (editor: Editor) => void): void {
+    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!mdView?.editor) return;
+    action(mdView.editor);
+    this.hideSelectionToolbar();
+  }
+
+  private toggleWrappedSelection(before: string, after: string): void {
+    this.transformSnapshotSelection((text) => {
+      if (text.startsWith(before) && text.endsWith(after) && text.length >= before.length + after.length) {
+        return text.slice(before.length, text.length - after.length);
+      }
+      return `${before}${text}${after}`;
+    });
+  }
+
+  private insertAfterSelection(text: string): void {
+    const snapshot = this.getSelectionSnapshot();
+    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!snapshot || !mdView?.editor || mdView.file?.path !== snapshot.filePath) return;
+    if (samePosition(snapshot.from, snapshot.to)) {
+      mdView.editor.replaceRange(text, mdView.editor.getCursor());
+    } else {
+      mdView.editor.replaceRange(`${snapshot.text}${text}`, snapshot.from, snapshot.to);
+    }
+    this.hideSelectionToolbar();
+  }
+
+  private transformSnapshotSelection(transform: (text: string) => string): void {
+    const snapshot = this.getSelectionSnapshot();
+    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!snapshot || !mdView?.editor || mdView.file?.path !== snapshot.filePath || samePosition(snapshot.from, snapshot.to)) {
+      notify("当前选区不可写入，请切换至编辑模式");
+      return;
+    }
+    this.applyReplacement(mdView.editor, snapshot.from, snapshot.to, transform(snapshot.text), "已应用格式");
+    this.hideSelectionToolbar();
+  }
+
+  private toggleHeadingSelection(level: 0 | 2 | 3): void {
+    const snapshot = this.getSelectionSnapshot();
+    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!snapshot || !mdView?.editor || mdView.file?.path !== snapshot.filePath || samePosition(snapshot.from, snapshot.to)) {
+      notify("当前选区不可写入，请切换至编辑模式");
+      return;
+    }
+    const prefix = level === 0 ? "" : `${"#".repeat(level)} `;
+    const formatted = snapshot.text
+      .split("\n")
+      .map((line) => {
+        const withoutHeading = line.replace(/^#{1,6}\s+/, "");
+        const hasSameHeading = level > 0 && line.startsWith(prefix);
+        return level === 0 || hasSameHeading ? withoutHeading : `${prefix}${withoutHeading}`;
+      })
+      .join("\n");
+    this.applyReplacement(mdView.editor, snapshot.from, snapshot.to, formatted, "已应用标题格式");
+    this.hideSelectionToolbar();
+  }
+
+  private toggleColorMarkup(text: string, prop: "color" | "background", value: string): string {
+    const escapedProp = prop.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const tagRe = new RegExp(`^<(span|mark)\\s+style="${escapedProp}:${escapedValue}">([\\s\\S]*)<\\/\\1>$`);
+    const matched = text.match(tagRe);
+    if (matched) return matched[2];
+    const tag = prop === "background" ? "mark" : "span";
+    return `<${tag} style="${prop}:${value}">${text}</${tag}>`;
+  }
+
+  private clearBasicFormat(): void {
+    this.transformSnapshotSelection((text) =>
+      text
+        .replace(/\*\*([^*]+)\*\*/g, "$1")
+        .replace(/\*([^*]+)\*/g, "$1")
+        .replace(/~~([^~]+)~~/g, "$1")
+        .replace(/==([^=]+)==/g, "$1")
+        .replace(/`([^`]+)`/g, "$1")
+        .replace(/<\/?u>/g, "")
+        .replace(/<\/?(span|mark)\b[^>]*>/g, "")
+    );
   }
 
   private positionSelectionToolbar(toolbar: HTMLElement): void {
@@ -528,7 +739,7 @@ export default class AIOrganizerPlugin extends Plugin {
 
   private selectionDomRect(): DOMRect | null {
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return null;
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
     const rect = selection.getRangeAt(0).getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) return null;
     return rect;
@@ -543,6 +754,8 @@ export default class AIOrganizerPlugin extends Plugin {
   private closeSelectionToolbar(evt?: Event): void {
     evt?.preventDefault();
     evt?.stopPropagation();
+    (evt as any)?.stopImmediatePropagation?.();
+    this.selectionToolbarSuppressedUntil = Date.now() + 10000;
     const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (mdView?.editor) {
       const from = mdView.editor.getCursor("from");
@@ -554,10 +767,12 @@ export default class AIOrganizerPlugin extends Plugin {
         to,
         text
       );
+      mdView.editor.setCursor(to);
     }
+    window.getSelection()?.removeAllRanges();
     this.selectionSnapshot = null;
-    this.selectionToolbarSuppressedUntil = Date.now() + 2000;
-    this.selectionToolbarEl?.removeClass("is-visible");
+    this.selectionToolbarEl?.remove();
+    this.selectionToolbarEl = null;
   }
 
   private async askSelectionInChat(snapshot: AIOSelectionSnapshot): Promise<void> {
@@ -590,9 +805,9 @@ export default class AIOrganizerPlugin extends Plugin {
 
   private async replaceSnapshotSelection(snapshot: AIOSelectionSnapshot, result: string): Promise<void> {
     const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!mdView?.editor || mdView.file?.path !== snapshot.filePath) {
+    if (!mdView?.editor || mdView.file?.path !== snapshot.filePath || samePosition(snapshot.from, snapshot.to)) {
       await navigator.clipboard.writeText(result);
-      new Notice("当前选区已变化，结果已复制到剪贴板");
+      notify("选区无法替换，结果已复制到剪贴板");
       return;
     }
     this.applyReplacement(mdView.editor, snapshot.from, snapshot.to, result, "已应用到选中文本");
@@ -613,7 +828,7 @@ export default class AIOrganizerPlugin extends Plugin {
     // 高亮期间不让选中工具栏弹出，避免“关不掉”的感觉
     this.selectionToolbarSuppressedUntil = Date.now() + 1800;
     this.showEditUndoPill(editor, from, newTo);
-    new Notice(`${label}（可撤回）`);
+    notifySuccess(`${label}（可撤回）`);
     // 短暂高亮后收拢光标，避免后续输入误覆盖
     window.setTimeout(() => {
       const cursor = editor.getCursor();
@@ -758,7 +973,7 @@ export default class AIOrganizerPlugin extends Plugin {
   private restoreCurrentScrollPosition(showNotice = false): void {
     const file = this.app.workspace.getActiveFile();
     if (!(file instanceof TFile) || file.extension !== "md") {
-      if (showNotice) new Notice("先打开一篇 Markdown 笔记");
+      if (showNotice) notify("请先打开 Markdown 笔记");
       return;
     }
     const persisted = this.settings.scrollRestore.positions?.[file.path];
@@ -766,14 +981,18 @@ export default class AIOrganizerPlugin extends Plugin {
       this.notePositions.set(file.path, persisted);
     }
     if (!this.notePositions.has(file.path)) {
-      if (showNotice) new Notice("这篇笔记还没有记录浏览位置");
+      if (showNotice) notify("该笔记暂无浏览位置记录");
       return;
     }
     const apply = () => this.restoreScrollFor(file, true);
     const restored = apply();
     requestAnimationFrame(apply);
     window.setTimeout(apply, 350);
-    if (showNotice) new Notice(restored ? "已回到上次浏览位置" : "暂时无法恢复当前位置");
+    if (showNotice) {
+      notify(restored ? "已恢复上次浏览位置" : "无法恢复上次浏览位置", {
+        type: restored ? "success" : "error",
+      });
+    }
   }
 
   /** 注册：切换笔记时记录位置，打开笔记时恢复位置 */
@@ -791,7 +1010,7 @@ export default class AIOrganizerPlugin extends Plugin {
         const applyWithNotice = () => {
           if (apply() && !notified) {
             notified = true;
-            new Notice("已回到上次浏览位置");
+            notifySuccess("已恢复上次浏览位置");
           }
         };
         requestAnimationFrame(applyWithNotice);
@@ -819,7 +1038,7 @@ export default class AIOrganizerPlugin extends Plugin {
   openSettings(): void {
     const setting = (this.app as any).setting;
     if (!setting) {
-      new Notice("请从 Obsidian 设置 → 第三方插件 → AI Organizer 打开配置");
+      notify("请在 Obsidian 设置 → 第三方插件中打开 AI Organizer 配置");
       return;
     }
     setting.open();
@@ -828,42 +1047,37 @@ export default class AIOrganizerPlugin extends Plugin {
 
   async formatNote(): Promise<void> {
     if (this.formattingInProgress) {
-      new Notice("排版正在进行中，请稍等…");
+      notify("排版中…");
+      return;
+    }
+    const file = this.app.workspace.getActiveFile();
+    if (!file || !(file instanceof TFile) || file.extension !== "md") {
+      notify("请先打开 Markdown 笔记");
       return;
     }
     const mode = this.settings.formatting.mode;
     this.formattingInProgress = true;
-    const loadingNotice = new Notice("AI 正在排版当前笔记…", 0);
-    let streamedChars = 0;
-    let lastNoticeAt = 0;
+    const loadingNotice = notifyLoading("正在排版…");
 
     try {
-      const result = await this.formatting.formatActiveNote(mode, {
-        onStream: (delta) => {
-          streamedChars += delta.length;
-          const now = Date.now();
-          if (now - lastNoticeAt > 500) {
-            loadingNotice.setMessage(`AI 正在排版当前笔记…已生成 ${streamedChars} 字`);
-            lastNoticeAt = now;
-          }
-        },
-      });
+      loadingNotice.setMessage("正在排版（保护图片与附件引用）…");
+      const result = await this.formatting.formatActiveNote(mode);
       if (!result) return;
-      const { file, before, after } = result;
+      const { file: resultFile, before, after } = result;
 
-      loadingNotice.setMessage("排版完成，正在打开预览…");
+      loadingNotice.setMessage("排版完成，打开预览中…");
       const apply = async () => {
-        await this.app.vault.modify(file, after);
-        new Notice(`「${file.basename}」排版完成`);
+        await this.app.vault.modify(resultFile, after);
+        notifySuccess(`已排版：${resultFile.basename}`);
       };
 
       if (this.settings.formatting.previewBeforeApply) {
-        new FormattingPreviewModal(this.app, file, before, after, apply).open();
+        new FormattingPreviewModal(this.app, resultFile, before, after, apply).open();
       } else {
         await apply();
       }
     } catch (err: any) {
-      new Notice(`排版失败：${err?.message || err}`, 8000);
+      notifyError(`排版失败：${err?.message || err}`, 8000);
     } finally {
       loadingNotice.hide();
       this.formattingInProgress = false;
@@ -873,7 +1087,7 @@ export default class AIOrganizerPlugin extends Plugin {
   async organizeImages(): Promise<void> {
     const file = this.app.workspace.getActiveFile();
     if (!file || !(file instanceof TFile) || file.extension !== "md") {
-      new Notice("请先打开一篇 Markdown 笔记");
+      notify("请先打开 Markdown 笔记");
       return;
     }
     const defaultTarget = this.imageOrganizer.targetFolderFor(file);
@@ -889,60 +1103,66 @@ export default class AIOrganizerPlugin extends Plugin {
   }
 
   async scanOrphans(): Promise<void> {
-    new Notice("正在扫描未引用附件…");
+    const loading = notifyLoading("正在扫描未引用附件…");
     const orphans = await this.imageOrganizer.findOrphans();
+    loading.hide();
     if (orphans.length === 0) {
-      new Notice("没有未引用的附件，库很干净 🎉");
+      notifySuccess("未发现未引用的附件");
       return;
     }
     new OrphanModal(this.app, orphans, async (files) => {
       const moved = await this.imageOrganizer.moveOrphansToTrash(files);
-      new Notice(`已移动 ${moved} 个未引用附件到「未引用附件」文件夹`);
+      notifySuccess(`已移动 ${moved} 个附件至「未引用附件」`);
     }).open();
   }
 
   async generateMetadata(): Promise<void> {
     const file = this.app.workspace.getActiveFile();
     if (!file || !(file instanceof TFile) || file.extension !== "md") {
-      new Notice("请先打开一篇 Markdown 笔记");
+      notify("请先打开 Markdown 笔记");
       return;
     }
-    new Notice("AI 正在生成元数据…");
+    const loading = notifyLoading("正在生成元数据…");
     await this.metadataGenerator.applyToNote(file);
+    loading.hide();
   }
 
   async organizeInbox(): Promise<void> {
     const notes = this.inboxOrganizer.listInboxNotes();
     if (notes.length === 0) {
-      new Notice(`收件箱「${this.settings.inbox.inboxFolder}」中没有笔记`);
+      notify(`收件箱「${this.settings.inbox.inboxFolder}」暂无笔记`);
       return;
     }
-    new Notice(`正在让 AI 分析 ${notes.length} 篇收件箱笔记…`);
+    const loading = notifyLoading(`正在分析 ${notes.length} 篇收件箱笔记…`);
     try {
       const suggestions = await this.inboxOrganizer.suggestMoves(notes);
+      loading.hide();
       new InboxConfirmModal(this.app, suggestions, async (moves) => {
         const { moved, kept } = await this.inboxOrganizer.executeMoves(moves);
-        new Notice(`整理完成：移动 ${moved} 篇，保持原位 ${kept} 篇`);
+        notifySuccess(`整理完成：移动 ${moved} 篇，保留 ${kept} 篇`);
       }).open();
     } catch (err: any) {
-      new Notice(`整理失败：${err?.message || err}`, 6000);
+      loading.hide();
+      notifyError(`整理失败：${err?.message || err}`, 6000);
     }
   }
 
   async suggestLinks(): Promise<void> {
     const file = this.app.workspace.getActiveFile();
     if (!file || !(file instanceof TFile) || file.extension !== "md") {
-      new Notice("请先打开一篇 Markdown 笔记");
+      notify("请先打开 Markdown 笔记");
       return;
     }
-    new Notice("AI 正在分析相关笔记…");
+    const loading = notifyLoading("正在分析相关笔记…");
     try {
       const suggestions = await this.linkSuggester.suggest(file);
+      loading.hide();
       new LinkSuggestModal(this.app, suggestions, async (selected) => {
         await this.linkSuggester.appendLinks(file, selected);
       }).open();
     } catch (err: any) {
-      new Notice(`分析失败：${err?.message || err}`, 6000);
+      loading.hide();
+      notifyError(`分析失败：${err?.message || err}`, 6000);
     }
   }
 
@@ -957,13 +1177,17 @@ export default class AIOrganizerPlugin extends Plugin {
     op: "format" | "metadata" | "translate"
   ): Promise<void> {
     const total = files.length;
+    const loading = notifyLoading("批量处理中 0/" + total);
     const results = await this.batchProcessor.process(files, op, (done) => {
-      new Notice(`批量处理中… ${done}/${total}`);
+      loading.setMessage(`批量处理中 ${done}/${total}`);
     });
+    loading.hide();
     const failed = results.filter((r) => !r.ok);
     if (failed.length > 0) {
       const detail = failed.map((r) => `${r.file.name}: ${r.message}`).slice(0, 10).join("\n");
-      new Notice(`失败 ${failed.length} 篇：\n${detail}`, 10000);
+      notifyError(`失败 ${failed.length} 篇：\n${detail}`, 10000);
+    } else {
+      notifySuccess(`批量处理完成：${results.length} 篇`);
     }
   }
 
@@ -1044,7 +1268,7 @@ export default class AIOrganizerPlugin extends Plugin {
       cls: "aio-translation-thought-input",
       attr: {
         rows: "3",
-        placeholder: "例如：这里和上一节的概念有关，之后要再查一下原文出处...",
+        placeholder: "例：与上一节概念相关，需再查原文…",
       },
     });
     const existingTranslation = snapshot
@@ -1077,7 +1301,7 @@ export default class AIOrganizerPlugin extends Plugin {
     });
     copyBtn.addEventListener("click", async () => {
       await navigator.clipboard.writeText(translated);
-      new Notice("翻译内容已复制");
+      notifySuccess("翻译内容已复制");
     });
 
     const saveBtn = actions.createEl("button", {
@@ -1154,11 +1378,11 @@ export default class AIOrganizerPlugin extends Plugin {
       const existing = popup.createDiv({ cls: "aio-annotation-existing" });
       existing.createDiv({
         cls: "aio-annotation-existing-title",
-        text: isEditing ? "正在修改这段文字的便签" : "这段文字已有翻译便签",
+        text: isEditing ? "正在修改该文本的便签" : "该文本已有翻译便签",
       });
       existing.createDiv({
         cls: "aio-annotation-existing-item",
-        text: "保存后会更新原有便签，不会新增一条。",
+        text: "保存将更新原便签，不新增。",
       });
     }
 
@@ -1168,7 +1392,7 @@ export default class AIOrganizerPlugin extends Plugin {
       cls: "aio-translation-thought-input",
       attr: {
         rows: "5",
-        placeholder: "写下你对这段文字的批注、疑问、联想、待办...",
+        placeholder: "输入批注、疑问或待办…",
       },
     });
     thoughtEl.value = this.combineThoughts(existingThoughts);
@@ -1224,13 +1448,13 @@ export default class AIOrganizerPlugin extends Plugin {
       thought,
       targetLang,
     });
-    new Notice("翻译便签已保存（未写入正文）");
+    notifySuccess("翻译便签已保存");
   }
 
   private async insertThoughtNote(thought: string, snapshot: AIOSelectionSnapshot): Promise<void> {
     const cleanedThought = thought.trim();
     if (!cleanedThought) {
-      new Notice("请先写一点想法");
+      notify("请输入想法内容");
       return;
     }
     await this.saveAnnotation({
@@ -1238,7 +1462,7 @@ export default class AIOrganizerPlugin extends Plugin {
       type: "thought",
       thought: cleanedThought,
     });
-    new Notice("便签已保存（未写入正文）");
+    notifySuccess("便签已保存");
   }
 
   private async saveAnnotation(opts: {
@@ -1534,7 +1758,7 @@ export default class AIOrganizerPlugin extends Plugin {
     );
     if (annotations.length === 0) {
       this.hideTranslationPopup();
-      new Notice("这段文字还没有便签");
+      notify("该文本暂无便签");
       return;
     }
 
@@ -1594,7 +1818,7 @@ export default class AIOrganizerPlugin extends Plugin {
       cls: "aio-translation-thought-input",
       attr: {
         rows: "5",
-        placeholder: "写下或修改你的理解、疑问、关联线索...",
+        placeholder: "输入或修改理解、疑问、关联线索…",
       },
     });
     thoughtEl.value = this.combineThoughts(existingThoughts);
@@ -1610,7 +1834,7 @@ export default class AIOrganizerPlugin extends Plugin {
         for (const item of existingThoughts) {
           await this.deleteAnnotation(item.id, undefined, false, false);
         }
-        new Notice("已删除想法便签");
+        notifySuccess("已删除想法便签");
         this.showAnnotationThread(filePath, quote);
       });
     }
@@ -1622,7 +1846,7 @@ export default class AIOrganizerPlugin extends Plugin {
     addBtn.addEventListener("click", async () => {
       const thought = thoughtEl.value.trim();
       if (!thought) {
-        new Notice("请先写一点想法");
+        notify("请输入想法内容");
         return;
       }
       await this.saveAnnotation({
@@ -1640,7 +1864,7 @@ export default class AIOrganizerPlugin extends Plugin {
   openAnnotationPanel(): void {
     const file = this.app.workspace.getActiveFile();
     if (!(file instanceof TFile) || file.extension !== "md") {
-      new Notice("先打开一篇 Markdown 笔记");
+      notify("请先打开 Markdown 笔记");
       return;
     }
     void this.pruneMissingAnnotations(file).then((changed) => {
@@ -1745,7 +1969,7 @@ export default class AIOrganizerPlugin extends Plugin {
   jumpToAnnotation(item: AIOAnnotation): void {
     const file = this.app.vault.getAbstractFileByPath(item.filePath);
     if (!(file instanceof TFile)) {
-      new Notice("便签对应的笔记不存在");
+      notifyError("便签所属笔记不存在");
       return;
     }
     const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -1766,7 +1990,7 @@ export default class AIOrganizerPlugin extends Plugin {
     const doc = editor.getValue();
     const range = resolveQuoteRange(doc, item);
     if (!range) {
-      new Notice("这段文字在当前笔记中已找不到");
+      notifyError("该文本在当前笔记中不存在");
       return;
     }
     const from = posFromOffset(doc, range.from);
@@ -1780,7 +2004,7 @@ export default class AIOrganizerPlugin extends Plugin {
   async exportAnnotationsToNote(): Promise<void> {
     const file = this.app.workspace.getActiveFile();
     if (!(file instanceof TFile) || file.extension !== "md") {
-      new Notice("先打开一篇 Markdown 笔记");
+      notify("请先打开 Markdown 笔记");
       return;
     }
     await this.pruneMissingAnnotations(file);
@@ -1788,7 +2012,7 @@ export default class AIOrganizerPlugin extends Plugin {
       this.settings.annotations.filter((item) => item.filePath === file.path)
     ).sort((a, b) => b.updatedAt - a.updatedAt);
     if (annotations.length === 0) {
-      new Notice("这篇笔记还没有便签");
+      notify("该笔记暂无便签");
       return;
     }
 
@@ -1823,28 +2047,28 @@ export default class AIOrganizerPlugin extends Plugin {
     const folder = file.parent?.path ?? "";
     const fileName = `${folder ? folder + "/" : ""}${file.basename} 便签.md`;
     const newFile = await this.app.vault.create(fileName, lines.join("\n"));
-    new Notice(`已导出 ${annotations.length} 条便签`);
+    notifySuccess(`已导出 ${annotations.length} 条便签`);
     void this.app.workspace.getLeaf(false).openFile(newFile);
   }
 
   /** 便签面板摘要文本 */
   private panelSummaryText(annotations: AIOAnnotation[]): string {
     const lost = annotations.filter((item) => item.anchorLost).length;
-    const suffix = lost > 0 ? `（其中 ${lost} 条位置已失效，可点开查看或删除）` : "";
-    return `${annotations.length} 条便签，点击卡片可跳转到原文，右侧可删除。${suffix}`;
+    const suffix = lost > 0 ? `（其中 ${lost} 条位置已失效，点开查看或删除）` : "";
+    return `${annotations.length} 条便签 · 点击卡片跳转原文 · 右侧可删除${suffix}`;
   }
 
   private async deleteAnnotation(id: string, after?: () => void, ask = true, notify = true): Promise<void> {
     const item = this.settings.annotations.find((annotation) => annotation.id === id);
     if (!item) {
-      new Notice("这条便签已经不存在");
+      notifyError("便签不存在");
       return;
     }
     if (ask && !confirm("确定删除这条便签吗？")) return;
     this.settings.annotations = this.settings.annotations.filter((annotation) => annotation.id !== id);
     await this.saveSettings();
     this.refreshAnnotationDecorations();
-    if (notify) new Notice("已删除便签");
+    if (notify) notifySuccess("已删除便签");
     after?.();
   }
 

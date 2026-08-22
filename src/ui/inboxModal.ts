@@ -1,4 +1,5 @@
-import { App, Modal, Notice, setIcon } from "obsidian";
+import { App, Modal, setIcon } from "obsidian";
+import { notifyError } from "../utils/notify";
 import type { InboxMoveSuggestion } from "../types";
 import { sanitizeFileName } from "../utils";
 
@@ -66,7 +67,7 @@ export class InboxConfirmModal extends Modal {
         await this.onConfirm(moves);
         this.close();
       } catch (err: any) {
-        new Notice(`整理失败：${err?.message || err}`, 6000);
+        notifyError(`整理失败：${err?.message || err}`, 6000);
         confirmBtn.disabled = false;
         confirmBtn.setText("确认移动");
       }

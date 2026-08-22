@@ -1,7 +1,8 @@
-import { Notice, TFile } from "obsidian";
+import { TFile } from "obsidian";
 import type AIOrganizerPlugin from "../main";
 import type { BatchOperation } from "../types";
 import { sleep } from "../utils";
+import { notifyError, notifySuccess } from "../utils/notify";
 
 // ============================================================
 // 批量 AI 处理：对多篇笔记批量执行 排版 / 元数据 / 翻译
@@ -61,10 +62,11 @@ export class BatchProcessor {
     }
 
     const failed = results.filter((r) => !r.ok).length;
-    new Notice(
-      `批量处理完成：成功 ${results.length - failed}，失败 ${failed}`,
-      failed > 0 ? 8000 : 4000
-    );
+    if (failed > 0) {
+      notifyError(`批量处理完成：成功 ${results.length - failed}，失败 ${failed}`, 8000);
+    } else {
+      notifySuccess(`批量处理完成：${results.length} 篇`);
+    }
     return results;
   }
 }

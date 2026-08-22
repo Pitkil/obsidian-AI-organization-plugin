@@ -1,7 +1,8 @@
-import { Notice, TFile } from "obsidian";
+import { TFile } from "obsidian";
 import type AIOrganizerPlugin from "../main";
-import type { FormatMode } from "../types";
+import type { ChatMessage, FormatMode } from "../types";
 import { stripCodeFence, truncate } from "../utils";
+import { notify } from "../utils/notify";
 
 // ============================================================
 // AI 排版服务
@@ -60,33 +61,73 @@ export class FormattingService {
     mode: string,
     opts: { onStream?: (delta: string) => void } = {}
   ): Promise<string> {
+    const protectedMarkdown = this.protectImageRefs(content);
     const prompt = `${this.resolvePrompt(mode)}
+
+图片、附件和嵌入引用已被临时替换为 AIO_IMAGE_REF_数字 占位符。你必须逐字保留这些占位符，不要翻译、删除、拆开、包裹或改写它们。
 
 请直接输出排版后的完整 Markdown 全文（不要用代码块包裹，不要添加任何解释性文字）：
 
 \`\`\`markdown
-${truncate(content, 16000)}
+${truncate(protectedMarkdown.content, 16000)}
 \`\`\``;
 
     const messages = this.plugin.chatService.buildMessages(prompt, {
       extraSystem:
-        "你只输出排版后的笔记全文，不要输出任何解释、注释或代码围栏标记。输出必须仍是合法的 Markdown。",
+        "你只输出排版后的笔记全文，不要输出任何解释、注释或代码围栏标记。输出必须仍是合法的 Markdown。AIO_IMAGE_REF_数字 是不可修改的占位符，必须原样保留。",
     });
 
-    const raw = await this.plugin.chatService.chat(messages, {
-      onStream: opts.onStream,
-    });
+    let raw = await this.requestFormattedMarkdown(messages, opts);
+    if (!raw.trim()) {
+      raw = await this.requestFormattedMarkdown(messages, { forceStream: true });
+    }
 
-    const formatted = stripCodeFence(raw).trimEnd();
+    const formatted = this.restoreImageRefs(stripCodeFence(raw).trimEnd(), protectedMarkdown.refs);
     this.validateFormattedContent(content, formatted);
     return formatted + "\n";
+  }
+
+  private async requestFormattedMarkdown(
+    messages: ChatMessage[],
+    opts: { onStream?: (delta: string) => void; forceStream?: boolean } = {}
+  ): Promise<string> {
+    let streamed = "";
+    const raw = await this.plugin.chatService.chat(messages, {
+      onStream: opts.onStream || opts.forceStream
+        ? (delta) => {
+            streamed += delta;
+            opts.onStream?.(delta);
+          }
+        : undefined,
+    });
+    return raw || streamed;
+  }
+
+  private protectImageRefs(content: string): { content: string; refs: string[] } {
+    const refs: string[] = [];
+    const protectedContent = content.replace(
+      /!\[[^\]]*?\]\([^)]+?\)|!\[\[[^\]]+?\]\]/g,
+      (ref) => {
+        const index = refs.push(ref) - 1;
+        return `AIO_IMAGE_REF_${index}`;
+      }
+    );
+    return { content: protectedContent, refs };
+  }
+
+  private restoreImageRefs(content: string, refs: string[]): string {
+    let restored = content;
+    refs.forEach((ref, index) => {
+      restored = restored.replace(new RegExp(`\\bAIO_IMAGE_REF_${index}\\b`, "g"), ref);
+    });
+    return restored.trimEnd();
   }
 
   private validateFormattedContent(before: string, after: string): void {
     const beforeText = before.trim();
     const afterText = after.trim();
     if (!afterText) {
-      throw new Error("模型没有返回可用的排版内容，已取消写入。");
+      throw new Error("模型未返回排版内容，已取消写入。已自动尝试非流式与流式两种请求；请检查当前模型是否支持文本输出、Max Token 是否过小，或换一个文本模型。");
     }
 
     if (beforeText.length >= 200) {
@@ -98,11 +139,22 @@ ${truncate(content, 16000)}
       }
     }
 
-    const imageRefsBefore = beforeText.match(/!\[[^\]]*?\]\([^)]+?\)|!\[\[[^\]]+?\]\]/g) ?? [];
-    const imageRefsAfter = afterText.match(/!\[[^\]]*?\]\([^)]+?\)|!\[\[[^\]]+?\]\]/g) ?? [];
-    if (imageRefsAfter.length < imageRefsBefore.length) {
-      throw new Error("模型返回内容丢失了部分图片/嵌入引用，已取消排版。");
+    const imageRefsBefore = this.countImageRefs(beforeText);
+    const imageRefsAfter = this.countImageRefs(afterText);
+    for (const [ref, count] of imageRefsBefore) {
+      if ((imageRefsAfter.get(ref) ?? 0) < count) {
+        throw new Error("模型返回内容丢失了部分图片/嵌入引用，已取消排版。");
+      }
     }
+  }
+
+  private countImageRefs(content: string): Map<string, number> {
+    const refs = content.match(/!\[[^\]]*?\]\([^)]+?\)|!\[\[[^\]]+?\]\]/g) ?? [];
+    const counts = new Map<string, number>();
+    for (const ref of refs) {
+      counts.set(ref, (counts.get(ref) ?? 0) + 1);
+    }
+    return counts;
   }
 
   /** 对当前笔记执行排版，成功后写回（外部负责预览确认） */
@@ -112,7 +164,7 @@ ${truncate(content, 16000)}
   ): Promise<{ file: TFile; before: string; after: string } | null> {
     const file = this.plugin.app.workspace.getActiveFile();
     if (!file || !(file instanceof TFile) || file.extension !== "md") {
-      new Notice("请先打开一篇 Markdown 笔记");
+      notify("请先打开 Markdown 笔记");
       return null;
     }
     const before = await this.plugin.app.vault.read(file);

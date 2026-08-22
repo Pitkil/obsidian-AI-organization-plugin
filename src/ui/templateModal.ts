@@ -1,4 +1,5 @@
-import { App, Modal, Notice } from "obsidian";
+import { App, Modal } from "obsidian";
+import { notify } from "../utils/notify";
 import type { CustomPromptTemplate } from "../types";
 
 // ============================================================
@@ -52,11 +53,11 @@ export class TemplateEditModal extends Modal {
       const name = this.nameInput.value.trim();
       const prompt = this.promptInput.value.trim();
       if (!name) {
-        new Notice("请填写模板名称");
+        notify("请输入模板名称");
         return;
       }
       if (!prompt) {
-        new Notice("请填写提示词");
+        notify("请输入提示词");
         return;
       }
       this.onSave({ name, prompt });

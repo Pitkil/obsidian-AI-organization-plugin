@@ -1,7 +1,8 @@
-import { Notice, TFile } from "obsidian";
+import { TFile } from "obsidian";
 import type AIOrganizerPlugin from "../main";
 import type { GeneratedMetadata } from "../types";
 import { extractJson, truncate } from "../utils";
+import { notifySuccess } from "../utils/notify";
 
 // ============================================================
 // AI 元数据生成：标签 / 摘要 / 别名 → frontmatter
@@ -67,7 +68,7 @@ ${truncate(content, 8000)}
       }
     });
 
-    new Notice(`已为「${note.basename}」生成元数据`);
+    notifySuccess(`已生成元数据：${note.basename}`);
     return meta;
   }
 }

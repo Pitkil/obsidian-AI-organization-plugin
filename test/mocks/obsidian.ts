@@ -38,7 +38,27 @@ export class TFolder {
 }
 
 export class Notice {
-  constructor(public message: string, public timeout?: number) {}
+  message: string;
+  timeout?: number;
+  // notify.ts 封装会操作 noticeEl（addClass/setAttr/createSpan/insertBefore）
+  noticeEl = {
+    addClass: vi.fn(),
+    removeClass: vi.fn(),
+    setAttr: vi.fn(),
+    createSpan: vi.fn(() => ({})),
+    insertBefore: vi.fn(),
+  } as any;
+  messageEl = { setText: vi.fn() } as any;
+
+  constructor(message: string, timeout?: number) {
+    this.message = message;
+    this.timeout = timeout;
+  }
+  setMessage(message: string): this {
+    this.message = message;
+    return this;
+  }
+  hide(): void {}
 }
 
 export class Plugin {

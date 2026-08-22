@@ -30,6 +30,7 @@ export interface ModelProfile {
   model: string;
   temperature?: number;
   maxTokens?: number;
+  contextWindowTokens?: number;
 }
 
 export interface ChatMessage {

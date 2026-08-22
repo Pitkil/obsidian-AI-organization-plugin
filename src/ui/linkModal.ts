@@ -1,4 +1,5 @@
-import { App, Modal, Notice } from "obsidian";
+import { App, Modal } from "obsidian";
+import { notify, notifyError } from "../utils/notify";
 import type { LinkSuggestion } from "../types";
 
 // ============================================================
@@ -56,7 +57,7 @@ export class LinkSuggestModal extends Modal {
     appendBtn.addEventListener("click", async () => {
       const selected = this.suggestions.filter((s) => this.selected.has(s.path));
       if (selected.length === 0) {
-        new Notice("未选择任何链接");
+        notify("未选择链接");
         return;
       }
       appendBtn.disabled = true;
@@ -65,7 +66,7 @@ export class LinkSuggestModal extends Modal {
         await this.onAppend(selected);
         this.close();
       } catch (err: any) {
-        new Notice(`添加失败：${err?.message || err}`, 6000);
+        notifyError(`添加失败：${err?.message || err}`, 6000);
         appendBtn.disabled = false;
         appendBtn.setText("添加到笔记末尾");
       }
