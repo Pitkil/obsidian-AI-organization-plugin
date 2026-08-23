@@ -5,7 +5,7 @@
 **An all-in-one AI workspace for Obsidian** — contextual chat, selection actions, translation, OCR-assisted image understanding, smart note formatting, attachment organization, Zotero-style annotations, metadata generation, inbox sorting, link suggestions, and batch processing, all inside your note-taking workflow.
 
 <p>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.1.1-0f766e">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.1.2-0f766e">
   <img alt="Obsidian" src="https://img.shields.io/badge/Obsidian-1.8%2B-6b7280">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6">
   <img alt="Tests" src="https://img.shields.io/badge/tests-Vitest-22c55e">

@@ -5,7 +5,7 @@
 **面向 Obsidian 的一站式 AI 工作台** —— 上下文对话、选中文本处理、翻译、OCR 辅助图片理解、智能排版、附件整理、Zotero 式便签、元数据生成、收件箱自动归类、双链建议与批量处理，全部融入你的笔记流程。
 
 <p>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.1.1-0f766e">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.1.2-0f766e">
   <img alt="Obsidian" src="https://img.shields.io/badge/Obsidian-1.8%2B-6b7280">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6">
   <img alt="Tests" src="https://img.shields.io/badge/tests-Vitest-22c55e">

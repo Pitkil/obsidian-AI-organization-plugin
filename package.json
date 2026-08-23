@@ -1,6 +1,6 @@
 {
   "name": "obsidian-ai-organizer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "All-in-one AI plugin for Obsidian: smart note formatting, image organization, multi-model chat, AI metadata, inbox auto-sort and more.",
   "main": "main.js",
   "scripts": {

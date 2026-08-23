@@ -1,7 +1,7 @@
 {
   "id": "ai-organizer",
   "name": "AI Organizer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minAppVersion": "1.8.0",
   "description": "All-in-one AI plugin: smart note formatting, one-click image organization, multi-model chat (OpenAI/Claude/Gemini), AI metadata, inbox auto-sort, link suggestions, batch processing and translation.",
   "author": "Wang Yilai",
