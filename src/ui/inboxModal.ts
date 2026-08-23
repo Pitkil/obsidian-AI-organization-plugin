@@ -2,6 +2,7 @@ import { App, Modal, setIcon } from "obsidian";
 import { notifyError } from "../utils/notify";
 import type { InboxMoveSuggestion } from "../types";
 import { sanitizeFileName } from "../utils";
+import { t, tpl } from "../i18n";
 
 // ============================================================
 // 智能收件箱整理确认模态框（可编辑目标文件夹）
@@ -25,11 +26,11 @@ export class InboxConfirmModal extends Modal {
 
     contentEl.createDiv({ cls: "aio-modal-header" }).createDiv({
       cls: "aio-modal-title",
-      text: `整理收件箱 — ${this.suggestions.length} 篇笔记`,
+      text: tpl("modal.inboxTitle", { n: this.suggestions.length }),
     });
     contentEl.createDiv({
       cls: "aio-modal-sub",
-      text: "AI 已为每篇笔记推荐目标文件夹，可修改后再确认移动",
+      text: t("modal.inboxSub"),
     });
 
     const list = contentEl.createDiv({ cls: "aio-list" });
@@ -41,17 +42,17 @@ export class InboxConfirmModal extends Modal {
       const folderWrap = row.createDiv({ cls: "aio-list-edit" });
       const input = folderWrap.createEl("input", {
         cls: "aio-input",
-        attr: { placeholder: "目标文件夹（留空 = 保持原位）" },
+        attr: { placeholder: t("modal.folderPlaceholder") },
       });
       input.value = s.targetFolder || "";
       this.folders.set(s.fileName, input);
     }
 
     const footer = contentEl.createDiv({ cls: "aio-modal-footer" });
-    const cancelBtn = footer.createEl("button", { cls: "aio-btn aio-btn-ghost", text: "取消" });
+    const cancelBtn = footer.createEl("button", { cls: "aio-btn aio-btn-ghost", text: t("common.cancel") });
     cancelBtn.addEventListener("click", () => this.close());
 
-    const confirmBtn = footer.createEl("button", { cls: "aio-btn aio-btn-primary", text: "确认移动" });
+    const confirmBtn = footer.createEl("button", { cls: "aio-btn aio-btn-primary", text: t("modal.confirmMove") });
     confirmBtn.addEventListener("click", async () => {
       const moves = this.suggestions.map((s) => ({
         fileName: s.fileName,
@@ -62,14 +63,14 @@ export class InboxConfirmModal extends Modal {
         reason: s.reason,
       }));
       confirmBtn.disabled = true;
-      confirmBtn.setText("移动中…");
+      confirmBtn.setText(t("modal.moving"));
       try {
         await this.onConfirm(moves);
         this.close();
       } catch (err: any) {
-        notifyError(`整理失败：${err?.message || err}`, 6000);
+        notifyError(tpl("notify.inboxFail", { msg: err?.message || err }), 6000);
         confirmBtn.disabled = false;
-        confirmBtn.setText("确认移动");
+        confirmBtn.setText(t("modal.confirmMove"));
       }
     });
   }

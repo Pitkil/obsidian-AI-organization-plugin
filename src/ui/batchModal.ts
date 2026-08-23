@@ -1,15 +1,16 @@
 import { App, Modal, TFile } from "obsidian";
 import type { BatchOperation } from "../types";
 import { notify } from "../utils/notify";
+import { t, tpl } from "../i18n";
 
 // ============================================================
 // 批量 AI 处理模态框（选择文件 + 操作类型 + 进度）
 // ============================================================
 
-const OPERATIONS: { value: BatchOperation; label: string; desc: string }[] = [
-  { value: "format", label: "AI 排版", desc: "按排版设置对每篇笔记排版" },
-  { value: "metadata", label: "生成标签/摘要", desc: "为每篇笔记生成 frontmatter 元数据" },
-  { value: "translate", label: "翻译", desc: "翻译为设置的目标语言" },
+const OPERATIONS: { value: BatchOperation; labelKey: string; descKey: string }[] = [
+  { value: "format", labelKey: "modal.opFormat", descKey: "modal.opFormatDesc" },
+  { value: "metadata", labelKey: "modal.opMetadata", descKey: "modal.opMetadataDesc" },
+  { value: "translate", labelKey: "modal.opTranslate", descKey: "modal.opTranslateDesc" },
 ];
 
 export class BatchModal extends Modal {
@@ -31,15 +32,15 @@ export class BatchModal extends Modal {
 
     contentEl.createDiv({ cls: "aio-modal-header" }).createDiv({
       cls: "aio-modal-title",
-      text: `批量 AI 处理（${this.files.length} 篇笔记）`,
+      text: tpl("modal.batchTitle", { n: this.files.length }),
     });
 
     // 操作类型
     const opWrap = contentEl.createDiv({ cls: "aio-op-selector" });
     for (const op of OPERATIONS) {
       const btn = opWrap.createDiv({ cls: `aio-op-btn ${op.value === this.op ? "is-active" : ""}` });
-      btn.createDiv({ cls: "aio-op-label", text: op.label });
-      btn.createDiv({ cls: "aio-op-desc", text: op.desc });
+      btn.createDiv({ cls: "aio-op-label", text: t(op.labelKey) });
+      btn.createDiv({ cls: "aio-op-desc", text: t(op.descKey) });
       btn.addEventListener("click", () => {
         this.op = op.value;
         opWrap.querySelectorAll(".aio-op-btn").forEach((b) => b.removeClass("is-active"));
@@ -51,15 +52,15 @@ export class BatchModal extends Modal {
     const toolbar = contentEl.createDiv({ cls: "aio-batch-toolbar" });
     this.searchInput = toolbar.createEl("input", {
       cls: "aio-input",
-      attr: { placeholder: "搜索笔记名…" },
+      attr: { placeholder: t("modal.searchNotes") },
     });
     this.searchInput.addEventListener("input", () => this.renderList());
-    const selectAll = toolbar.createEl("button", { cls: "aio-btn aio-btn-ghost aio-btn-sm", text: "全选" });
+    const selectAll = toolbar.createEl("button", { cls: "aio-btn aio-btn-ghost aio-btn-sm", text: t("modal.selectAll") });
     selectAll.addEventListener("click", () => {
       this.files.forEach((f) => this.selected.add(f.path));
       this.renderList();
     });
-    const selectNone = toolbar.createEl("button", { cls: "aio-btn aio-btn-ghost aio-btn-sm", text: "全不选" });
+    const selectNone = toolbar.createEl("button", { cls: "aio-btn aio-btn-ghost aio-btn-sm", text: t("modal.selectNone") });
     selectNone.addEventListener("click", () => {
       this.selected.clear();
       this.renderList();
@@ -69,13 +70,13 @@ export class BatchModal extends Modal {
     this.renderList();
 
     const footer = contentEl.createDiv({ cls: "aio-modal-footer" });
-    const cancelBtn = footer.createEl("button", { cls: "aio-btn aio-btn-ghost", text: "取消" });
+    const cancelBtn = footer.createEl("button", { cls: "aio-btn aio-btn-ghost", text: t("common.cancel") });
     cancelBtn.addEventListener("click", () => this.close());
-    const runBtn = footer.createEl("button", { cls: "aio-btn aio-btn-primary", text: "开始处理" });
+    const runBtn = footer.createEl("button", { cls: "aio-btn aio-btn-primary", text: t("modal.start") });
     runBtn.addEventListener("click", async () => {
       const chosen = this.files.filter((f) => this.selected.has(f.path));
       if (chosen.length === 0) {
-        notify("请至少选择一篇笔记");
+        notify(t("notify.selectAtLeastOne"));
         return;
       }
       this.close();
@@ -90,7 +91,7 @@ export class BatchModal extends Modal {
     const query = this.searchInput?.value.trim().toLowerCase() || "";
     const filtered = this.files.filter((f) => !query || f.basename.toLowerCase().includes(query));
     const countEl = this.listEl.createDiv({ cls: "aio-batch-count" });
-    countEl.setText(`已选 ${this.selected.size} / ${this.files.length}`);
+    countEl.setText(tpl("modal.selectedCount", { a: this.selected.size, b: this.files.length }));
 
     for (const f of filtered) {
       const row = this.listEl.createDiv({ cls: "aio-list-row aio-list-row-selectable" });

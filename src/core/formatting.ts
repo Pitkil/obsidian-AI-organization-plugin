@@ -3,6 +3,7 @@ import type AIOrganizerPlugin from "../main";
 import type { ChatMessage, FormatMode } from "../types";
 import { stripCodeFence, truncate } from "../utils";
 import { notify } from "../utils/notify";
+import { t } from "../i18n";
 
 // ============================================================
 // AI 排版服务
@@ -164,7 +165,7 @@ ${truncate(protectedMarkdown.content, 16000)}
   ): Promise<{ file: TFile; before: string; after: string } | null> {
     const file = this.plugin.app.workspace.getActiveFile();
     if (!file || !(file instanceof TFile) || file.extension !== "md") {
-      notify("请先打开 Markdown 笔记");
+      notify(t("notify.needMarkdown"));
       return null;
     }
     const before = await this.plugin.app.vault.read(file);

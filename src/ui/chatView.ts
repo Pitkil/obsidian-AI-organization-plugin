@@ -10,6 +10,7 @@ import {
 import * as Tesseract from "tesseract.js";
 import type AIOrganizerPlugin from "../main";
 import { notify } from "../utils/notify";
+import { t, tpl } from "../i18n";
 import type { ChatImagePart, ChatMessage, ModelProvider } from "../types";
 import {
   CHAT_CONTEXT_METER_BUDGET,
@@ -75,7 +76,7 @@ export class ChatView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "笔记助手";
+    return t("chat.title");
   }
 
   getIcon(): string {
@@ -111,18 +112,18 @@ export class ChatView extends ItemView {
     const mark = titleRow.createSpan({ cls: "aio-chat-logo" });
     setIcon(mark, "message-square");
     const titleBlock = titleRow.createDiv({ cls: "aio-chat-title-block" });
-    titleBlock.createSpan({ cls: "aio-chat-title", text: "笔记助手" });
-    titleBlock.createSpan({ cls: "aio-chat-subtitle", text: "上下文对话" });
+    titleBlock.createSpan({ cls: "aio-chat-title", text: t("chat.title") });
+    titleBlock.createSpan({ cls: "aio-chat-subtitle", text: t("chat.subtitle") });
 
     // ---- 操作按钮 ----
     const actions = header.createDiv({ cls: "aio-chat-actions" });
-    this.workbenchToggleBtn = actions.createEl("button", { cls: "aio-icon-btn", attr: { "aria-label": "展开工具", title: "展开工具" } });
+    this.workbenchToggleBtn = actions.createEl("button", { cls: "aio-icon-btn", attr: { "aria-label": t("chat.toggleWorkbench"), title: t("chat.toggleWorkbench") } });
     setIcon(this.workbenchToggleBtn, "chevron-down");
     this.workbenchToggleBtn.addEventListener("click", () => this.toggleWorkbench());
-    const settingsBtn = actions.createEl("button", { cls: "aio-icon-btn", attr: { "aria-label": "打开设置", title: "设置" } });
+    const settingsBtn = actions.createEl("button", { cls: "aio-icon-btn", attr: { "aria-label": t("chat.openSettingsAria"), title: t("chat.settings") } });
     setIcon(settingsBtn, "settings-2");
     settingsBtn.addEventListener("click", () => this.plugin.openSettings());
-    const closeBtn = actions.createEl("button", { cls: "aio-icon-btn aio-chat-close-btn", attr: { "aria-label": "关闭侧边栏", title: "关闭侧边栏" } });
+    const closeBtn = actions.createEl("button", { cls: "aio-icon-btn aio-chat-close-btn", attr: { "aria-label": t("chat.closeSidebar"), title: t("chat.closeSidebar") } });
     setIcon(closeBtn, "x");
     closeBtn.addEventListener("click", () => void this.plugin.closeChatView());
 
@@ -132,28 +133,27 @@ export class ChatView extends ItemView {
     this.controlsEl.addClass("is-collapsed");
 
     const workbenchHead = controls.createDiv({ cls: "aio-workbench-head" });
-    workbenchHead.createDiv({ cls: "aio-workbench-title", text: "对话工作台" });
-    workbenchHead.createDiv({ cls: "aio-workbench-desc", text: "处理当前笔记、附件与侧栏对话；文本内选中会出现独立浮层。" });
+    workbenchHead.createDiv({ cls: "aio-workbench-title", text: t("chat.workbench") });
 
     // ---- 上下文开关 ----
     const ctxRow = controls.createDiv({ cls: "aio-chat-ctx" });
-    this.noteToggle = this.createToggle(ctxRow, "当前笔记", this.plugin.settings.chat.injectCurrentNote);
-    this.selToggle = this.createToggle(ctxRow, "选中文本", this.plugin.settings.chat.injectSelection);
+    this.noteToggle = this.createToggle(ctxRow, t("chat.noteToggle"), this.plugin.settings.chat.injectCurrentNote);
+    this.selToggle = this.createToggle(ctxRow, t("chat.selectionToggle"), this.plugin.settings.chat.injectSelection);
     ctxRow.createSpan({ cls: "aio-chat-ctx-note" });
 
     const tools = controls.createDiv({ cls: "aio-chat-tools" });
-    this.createToolButton(tools, "排版", "pilcrow", () => void this.plugin.formatNote());
-    this.createToolButton(tools, "便签", "sticky-note", () => this.plugin.openAnnotationPanel());
-    this.createToolButton(tools, "元数据", "tags", () => void this.plugin.generateMetadata());
-    this.createToolButton(tools, "双链", "link-2", () => void this.plugin.suggestLinks());
-    this.createToolButton(tools, "图片", "image", () => void this.plugin.organizeImages());
-    this.createToolButton(tools, "收件箱", "inbox", () => void this.plugin.organizeInbox());
+    this.createToolButton(tools, t("chat.toolFormat"), "pilcrow", () => void this.plugin.formatNote());
+    this.createToolButton(tools, t("chat.toolNote"), "sticky-note", () => this.plugin.openAnnotationPanel());
+    this.createToolButton(tools, t("chat.toolMetadata"), "tags", () => void this.plugin.generateMetadata());
+    this.createToolButton(tools, t("chat.toolLinks"), "link-2", () => void this.plugin.suggestLinks());
+    this.createToolButton(tools, t("chat.toolImages"), "image", () => void this.plugin.organizeImages());
+    this.createToolButton(tools, t("chat.toolInbox"), "inbox", () => void this.plugin.organizeInbox());
 
     const panelActions = controls.createDiv({ cls: "aio-chat-panel-actions" });
-    const saveBtn = panelActions.createEl("button", { cls: "aio-icon-btn", attr: { "aria-label": "保存对话为笔记", title: "保存对话" } });
+    const saveBtn = panelActions.createEl("button", { cls: "aio-icon-btn", attr: { "aria-label": t("chat.saveConversation"), title: t("chat.saveConversation") } });
     setIcon(saveBtn, "save");
     saveBtn.addEventListener("click", () => this.saveConversation());
-    const clearBtn = panelActions.createEl("button", { cls: "aio-icon-btn", attr: { "aria-label": "清空对话", title: "清空" } });
+    const clearBtn = panelActions.createEl("button", { cls: "aio-icon-btn", attr: { "aria-label": t("chat.clearConversation"), title: t("chat.clearConversation") } });
     setIcon(clearBtn, "trash-2");
     clearBtn.addEventListener("click", () => this.clearConversation());
 
@@ -170,7 +170,7 @@ export class ChatView extends ItemView {
     this.contextChipText = this.contextChip.createSpan({ cls: "aio-context-chip-text" });
     this.contextClearBtn = this.contextChip.createEl("button", {
       cls: "aio-context-clear is-hidden",
-      attr: { type: "button", title: "移除选中文本上下文", "aria-label": "移除选中文本上下文" },
+      attr: { type: "button", title: t("chat.removeSelectionContext"), "aria-label": t("chat.removeSelectionContext") },
     });
     setIcon(this.contextClearBtn, "x");
     this.contextClearBtn.addEventListener("click", (evt) => {
@@ -179,7 +179,7 @@ export class ChatView extends ItemView {
     });
     const contextClearAllBtn = this.contextBar.createEl("button", {
       cls: "aio-context-clear-all",
-      attr: { type: "button", title: "清空上下文", "aria-label": "清空上下文" },
+      attr: { type: "button", title: t("chat.clearContext"), "aria-label": t("chat.clearContext") },
     });
     setIcon(contextClearAllBtn, "eraser");
     contextClearAllBtn.addEventListener("click", (evt) => {
@@ -190,7 +190,7 @@ export class ChatView extends ItemView {
     const inputWrap = inputArea.createDiv({ cls: "aio-chat-input-wrap" });
     this.inputEl = inputWrap.createEl("textarea", {
       cls: "aio-chat-input",
-      attr: { placeholder: "输入消息，可粘贴/拖入图片，Enter 发送…" },
+      attr: { placeholder: t("chat.inputPlaceholder") },
     });
     this.inputEl.addEventListener("focus", () => this.plugin.dismissSelectionToolbarForChat());
     inputArea.addEventListener("pointerdown", () => this.plugin.dismissSelectionToolbarForChat());
@@ -217,15 +217,15 @@ export class ChatView extends ItemView {
     const modelPicker = this.modelPicker;
     const modelIcon = this.modelPicker.createSpan({ cls: "aio-model-picker-icon" });
     setIcon(modelIcon, "bot");
-    this.modelSelect = modelPicker.createEl("select", { cls: "aio-model-select", attr: { "aria-label": "选择模型", title: "选择模型" } });
+    this.modelSelect = modelPicker.createEl("select", { cls: "aio-model-select", attr: { "aria-label": t("chat.selectModel"), title: t("chat.selectModel") } });
     this.populateModelSelect();
     this.modelSelect.addEventListener("change", () => this.onModelChange());
 
-    this.sendBtn = inputToolbar.createEl("button", { cls: "aio-send-btn", attr: { "aria-label": "发送" } });
+    this.sendBtn = inputToolbar.createEl("button", { cls: "aio-send-btn", attr: { "aria-label": t("chat.send") } });
     setIcon(this.sendBtn, "send");
     this.sendBtn.addEventListener("click", () => this.sendMessage());
 
-    this.stopBtn = inputToolbar.createEl("button", { cls: "aio-stop-btn is-hidden", attr: { "aria-label": "停止生成" } });
+    this.stopBtn = inputToolbar.createEl("button", { cls: "aio-stop-btn is-hidden", attr: { "aria-label": t("chat.stop") } });
     setIcon(this.stopBtn, "square");
     this.stopBtn.addEventListener("click", () => this.abortCtrl?.abort());
 
@@ -235,14 +235,14 @@ export class ChatView extends ItemView {
 
   askAboutSelection(text: string, filePath?: string): void {
     this.useSelectionContext(text, filePath);
-    this.inputEl.value = "讲解这段选中文本";
+    this.inputEl.value = t("chat.explainSelection");
     void this.sendMessage();
   }
 
   focusWithSelection(text: string, filePath?: string): void {
     this.useSelectionContext(text, filePath);
     this.inputEl.value = "";
-    this.inputEl.setAttr("placeholder", "基于选中文本继续提问…");
+    this.inputEl.setAttr("placeholder", t("chat.selectionPlaceholder"));
     this.inputEl.focus();
   }
 
@@ -286,8 +286,9 @@ export class ChatView extends ItemView {
   private toggleWorkbench(): void {
     this.workbenchCollapsed = !this.workbenchCollapsed;
     this.controlsEl.toggleClass("is-collapsed", this.workbenchCollapsed);
-    this.workbenchToggleBtn.setAttr("aria-label", this.workbenchCollapsed ? "展开工作台" : "收起工作台");
-    this.workbenchToggleBtn.setAttr("title", this.workbenchCollapsed ? "展开工作台" : "收起工作台");
+    const label = this.workbenchCollapsed ? t("chat.toolbarExpand") : t("chat.toolbarCollapse");
+    this.workbenchToggleBtn.setAttr("aria-label", label);
+    this.workbenchToggleBtn.setAttr("title", label);
     this.workbenchToggleBtn.empty();
     setIcon(this.workbenchToggleBtn, this.workbenchCollapsed ? "chevron-down" : "chevron-up");
   }
@@ -300,7 +301,7 @@ export class ChatView extends ItemView {
     if (profiles.length === 0) {
       this.modelSelect.createEl("option", {
         value: CONFIGURE_TEXT_MODEL_VALUE,
-        text: "配置文本模型",
+        text: t("chat.configureTextModel"),
       });
       this.modelSelect.value = CONFIGURE_TEXT_MODEL_VALUE;
       return;
@@ -323,7 +324,7 @@ export class ChatView extends ItemView {
     const providers = this.plugin.chatService.getProviders();
     const available = providers.filter((p) => p.isConfigured());
     if (available.length === 0) {
-      const opt = this.modelSelect.createEl("option", { value: "", text: "先配置模型" });
+      const opt = this.modelSelect.createEl("option", { value: "", text: t("chat.configureFirst") });
       opt.disabled = true;
       opt.selected = true;
     }
@@ -377,7 +378,7 @@ export class ChatView extends ItemView {
     if (note instanceof TFile) {
       hintEl.setText(note.basename);
     } else {
-      hintEl.setText("未打开笔记");
+      hintEl.setText(t("chat.noOpenNote"));
     }
     this.refreshInputContext();
   }
@@ -393,10 +394,10 @@ export class ChatView extends ItemView {
     this.emptyState = emptyState;
     const logo = emptyState.createDiv({ cls: "aio-empty-logo" });
     setIcon(logo, "message-circle");
-    emptyState.createDiv({ cls: "aio-empty-title", text: "准备处理当前笔记" });
+    emptyState.createDiv({ cls: "aio-empty-title", text: t("chat.emptyTitle") });
     emptyState.createDiv({
       cls: "aio-empty-sub",
-      text: "选择上下文后提问，或直接使用上方工具处理笔记。",
+      text: t("chat.emptySub"),
     });
     const tips = emptyState.createDiv({ cls: "aio-empty-tips" });
     const configured = this.plugin.chatService.getProviders().some((provider) => provider.isConfigured());
@@ -404,19 +405,19 @@ export class ChatView extends ItemView {
       const configBtn = tips.createEl("button", { cls: "aio-empty-action" });
       const configIcon = configBtn.createSpan();
       setIcon(configIcon, "settings-2");
-      configBtn.createSpan({ text: "配置模型" });
+      configBtn.createSpan({ text: t("chat.configModel") });
       configBtn.addEventListener("click", () => this.plugin.openSettings());
     }
     tips.createDiv({
       cls: "aio-empty-tip",
-      text: "选中文字后可直接翻译，回复可保存为 Markdown。",
+      text: t("chat.emptyTip"),
     });
   }
 
   private addMessage(role: "user" | "assistant", text: string): HTMLElement {
     const row = this.messageContainer.createDiv({ cls: `aio-msg aio-msg-${role}` });
     const avatar = row.createDiv({ cls: "aio-msg-avatar" });
-    avatar.setText(role === "user" ? "我" : "答");
+    avatar.setText(role === "user" ? t("chat.avatarMe") : t("chat.avatarAI"));
     const body = row.createDiv({ cls: "aio-msg-body" });
     const content = body.createDiv({ cls: "aio-msg-content markdown-rendered" });
     this.renderMarkdown(content, text || "…");
@@ -460,7 +461,7 @@ export class ChatView extends ItemView {
   private showTyping(): void {
     if (!this.typingEl) {
       const row = this.messageContainer.createDiv({ cls: "aio-msg aio-msg-ai" });
-      row.createDiv({ cls: "aio-msg-avatar" }).setText("答");
+      row.createDiv({ cls: "aio-msg-avatar" }).setText(t("chat.avatarAI"));
       const body = row.createDiv({ cls: "aio-msg-body" });
       this.typingEl = body.createDiv({ cls: "aio-typing" });
       for (let i = 0; i < 3; i++) {
@@ -491,7 +492,7 @@ export class ChatView extends ItemView {
     }
     let userInput = this.inputEl.value.trim();
     if (!userInput && this.attachedImages.length > 0) {
-      userInput = "请分析这些图片";
+      userInput = t("chat.analyzeImages");
     }
     if (!userInput) return;
     this.inputEl.value = "";
@@ -555,14 +556,14 @@ export class ChatView extends ItemView {
         },
       });
       if (!full.trim()) {
-        aiContent?.setText("（未返回内容）");
-        full = "（未返回内容）";
+        aiContent?.setText(t("chat.noReply"));
+        full = t("chat.noReply");
       }
     } catch (err: any) {
       this.hideTyping();
       if (!aiContent) aiContent = this.addMessage("assistant", "");
       if (this.abortCtrl.signal.aborted) {
-        full = full || "（已停止）";
+        full = full || t("chat.stopped");
       } else {
         const msg = err?.message || String(err);
         aiContent.setText(`⚠️ ${msg}`);
@@ -614,7 +615,7 @@ export class ChatView extends ItemView {
     const slots = Math.max(0, maxImages - this.attachedImages.length);
     const selected = files.slice(0, slots);
     if (selected.length < files.length) {
-      notify(`最多附加 ${maxImages} 张图片，其余已忽略`);
+      notify(tpl("chat.maxImages", { n: maxImages }));
     }
     for (const file of selected) {
       const image = await this.fileObjectToImagePart(file);
@@ -628,7 +629,7 @@ export class ChatView extends ItemView {
   private async fileObjectToImagePart(file: File): Promise<ChatImagePart | null> {
     const maxSizeMB = this.clampNumber(this.plugin.settings.imageOrg.visionMaxImageSizeMB, 1, 50, 5);
     if (file.size > maxSizeMB * 1024 * 1024) {
-      notify(`图片过大，已跳过：${file.name}`);
+      notify(tpl("chat.imageTooLarge", { name: file.name }));
       return null;
     }
     const data = await file.arrayBuffer();
@@ -636,7 +637,7 @@ export class ChatView extends ItemView {
       type: "image",
       mimeType: file.type || this.mimeForImage(file.name.split(".").pop() || "png"),
       data: this.arrayBufferToBase64(data),
-      name: file.name || `粘贴图片-${this.attachedImages.length + 1}.png`,
+      name: file.name || tpl("chat.pasteImageName", { n: this.attachedImages.length + 1 }),
     };
   }
 
@@ -647,10 +648,10 @@ export class ChatView extends ItemView {
     for (const image of this.attachedImages) {
       const chip = this.attachmentBar.createDiv({ cls: "aio-attachment-chip" });
       setIcon(chip.createSpan({ cls: "aio-attachment-icon" }), "image");
-      chip.createSpan({ cls: "aio-attachment-name", text: image.name || "图片" });
+      chip.createSpan({ cls: "aio-attachment-name", text: image.name || t("chat.image") });
       const removeBtn = chip.createEl("button", {
         cls: "aio-attachment-remove",
-        attr: { type: "button", title: "移除图片", "aria-label": "移除图片" },
+        attr: { type: "button", title: t("chat.removeImage"), "aria-label": t("chat.removeImage") },
       });
       setIcon(removeBtn, "x");
       removeBtn.addEventListener("click", () => {
@@ -758,7 +759,7 @@ export class ChatView extends ItemView {
     const omittedRefs = [
       ...allRefs.slice(remainingSlots),
       ...(opts.directImages && opts.directImages.length > maxImages
-        ? opts.directImages.slice(maxImages).map((image) => image.name || "对话附件")
+        ? opts.directImages.slice(maxImages).map((image) => image.name || t("chat.directAttachment"))
         : []),
     ];
     if (allRefs.length === 0 && images.length === 0) return "";
@@ -779,18 +780,23 @@ export class ChatView extends ItemView {
       }
     }
 
-    const sourceName = opts.sourceFile?.basename ?? (images.length ? "对话附件" : "选中文本");
+    const sourceName = opts.sourceFile?.basename ?? (images.length ? t("chat.directAttachment") : t("chat.selectionContext"));
     const analyzed = await this.plugin.chatService.analyzeImages(images, sourceName);
     const needsOcr =
       images.length > 0 &&
       (!this.hasActiveVisionModel() || /未配置视觉模型|视觉模型分析失败/.test(analyzed));
     const ocrText = needsOcr ? await this.runOcrFallback(images) : "";
     const notes: string[] = [
-      `图片统计：笔记/选区链接 ${allRefs.length} 张，直接附件 ${opts.directImages?.length ?? 0} 张；本次最多解析 ${maxImages} 张；实际发送视觉模型 ${images.length} 张。`,
+      tpl("chat.imgStats", {
+        refs: allRefs.length,
+        direct: opts.directImages?.length ?? 0,
+        max: maxImages,
+        sent: images.length,
+      }),
     ];
-    if (omittedRefs.length > 0) notes.push(`超过上限未解析 ${omittedRefs.length} 张：${omittedRefs.join("、")}`);
-    if (oversized.length > 0) notes.push(`超过单张 ${maxSizeMB}MB 未解析 ${oversized.length} 张：${oversized.join("、")}`);
-    if (unresolved.length > 0) notes.push(`未能解析这些图片链接：${unresolved.join("、")}`);
+    if (omittedRefs.length > 0) notes.push(tpl("chat.imgOmitted", { n: omittedRefs.length, list: omittedRefs.join("、") }));
+    if (oversized.length > 0) notes.push(tpl("chat.imgOversized", { size: maxSizeMB, n: oversized.length, list: oversized.join("、") }));
+    if (unresolved.length > 0) notes.push(tpl("chat.imgUnresolved", { list: unresolved.join("、") }));
     return `${notes.join("\n")}\n${analyzed}${ocrText ? `\n\n${ocrText}` : ""}`.trim();
   }
 
@@ -801,7 +807,7 @@ export class ChatView extends ItemView {
 
   private async runOcrFallback(images: ChatImagePart[]): Promise<string> {
     const cfg = this.plugin.settings.imageOrg;
-    if (!cfg.ocrFallbackEnabled) return "OCR 兜底：已关闭。";
+    if (!cfg.ocrFallbackEnabled) return t("chat.ocrDisabled");
     const languages = cfg.ocrLanguages?.trim() || "chi_sim+eng";
 
     try {
@@ -824,10 +830,10 @@ export class ChatView extends ItemView {
         }
       }
       return results.length > 0
-        ? `内置 OCR 兜底结果（${languages}）：\n${results.join("\n\n")}`
-        : `内置 OCR 兜底：未识别出文字（${languages}）。`;
+        ? tpl("chat.ocrResult", { langs: languages, result: results.join("\n\n") })
+        : tpl("chat.ocrNoText", { langs: languages });
     } catch (err: any) {
-      return `内置 OCR 兜底失败：${err?.message || err}`;
+      return tpl("chat.ocrFailed", { msg: err?.message || err });
     }
   }
 
@@ -898,7 +904,7 @@ export class ChatView extends ItemView {
   private async translateSelection(): Promise<void> {
     const selection = this.getContextSelection().trim();
     if (!selection) {
-      notify("请先在编辑器中选中文本");
+      notify(t("chat.selectFirstForTranslate"));
       return;
     }
     await this.plugin.translateText(selection);
@@ -914,43 +920,49 @@ export class ChatView extends ItemView {
     if (selection) {
       const imageCount = this.extractImageRefs(selection).length;
       const totalImages = imageCount + attachedImageCount;
-      this.contextChipText.setText(`选中文本 · ${selection.length} 字${totalImages ? ` · 图片 ${totalImages}` : ""}`);
+      this.contextChipText.setText(`${tpl("chat.selectionChip", { n: selection.length })}${totalImages ? tpl("chat.andImages", { n: totalImages }) : ""}`);
       this.contextChip.setAttr("title", selection.slice(0, 240));
       this.contextChip.addClass("is-active");
       this.contextClearBtn.removeClass("is-hidden");
       this.setToggleState(this.selToggle, true);
       const injectedChars = Math.min(selection.length, CHAT_SELECTION_CONTEXT_LIMIT);
+      const meterLabel =
+        tpl("chat.meterSelection", { sel: selection.length, injected: injectedChars }) +
+        (totalImages ? tpl("chat.meterImagesSuffix", { n: totalImages }) : "");
       this.updateContextMeter(
         baseTokens + this.estimateContextTokens(injectedChars) + (imageCount * this.estimateContextTokens(CHAT_IMAGE_CONTEXT_ESTIMATE_CHARS)) + attachedImageTokens,
-        `选中文本 ${selection.length} 字，实际注入约 ${injectedChars} 字${totalImages ? `，图片约 ${totalImages} 张` : ""}，含历史与输入`
+        meterLabel
       );
       return;
     }
     if (this.noteToggle.checked && activeFile instanceof TFile) {
-      this.contextChipText.setText(`# ${activeFile.basename}${attachedImageCount ? ` · 图片 ${attachedImageCount}` : ""}`);
+      this.contextChipText.setText(`${tpl("chat.noteChip", { name: activeFile.basename })}${attachedImageCount ? tpl("chat.andImages", { n: attachedImageCount }) : ""}`);
       this.contextChip.setAttr("title", activeFile.path);
       this.contextChip.addClass("is-active");
       this.contextClearBtn.addClass("is-hidden");
       const injectedChars = Math.min(activeFile.stat.size, CHAT_NOTE_CONTEXT_LIMIT);
+      const meterLabel =
+        tpl("chat.meterNote", { name: activeFile.basename, injected: injectedChars }) +
+        (attachedImageCount ? tpl("chat.meterAttachedSuffix", { n: attachedImageCount }) : "");
       this.updateContextMeter(
         baseTokens + this.estimateContextTokens(injectedChars) + attachedImageTokens,
-        `当前笔记 ${activeFile.basename}，实际注入最多约 ${injectedChars} 字${attachedImageCount ? `，附件图片约 ${attachedImageCount} 张` : ""}，含历史与输入`
+        meterLabel
       );
       return;
     }
     if (attachedImageCount > 0) {
-      this.contextChipText.setText(`图片附件 · ${attachedImageCount}`);
-      this.contextChip.setAttr("title", this.attachedImages.map((image) => image.name || "图片").join("、"));
+      this.contextChipText.setText(`${t("chat.attachmentChip")} · ${attachedImageCount}`);
+      this.contextChip.setAttr("title", this.attachedImages.map((image) => image.name || t("chat.image")).join("、"));
       this.contextChip.addClass("is-active");
       this.contextClearBtn.addClass("is-hidden");
-      this.updateContextMeter(baseTokens + attachedImageTokens, `附件图片约 ${attachedImageCount} 张，含历史与输入`);
+      this.updateContextMeter(baseTokens + attachedImageTokens, tpl("chat.meterAttachedImages", { n: attachedImageCount }));
       return;
     }
-    this.contextChipText.setText("无上下文");
-    this.contextChip.setAttr("title", "未注入上下文");
+    this.contextChipText.setText(t("chat.noContext"));
+    this.contextChip.setAttr("title", t("chat.noContextTitle"));
     this.contextChip.removeClass("is-active");
     this.contextClearBtn.addClass("is-hidden");
-    this.updateContextMeter(baseTokens, baseTokens > 0 ? "仅会话历史与当前输入" : "未注入上下文");
+    this.updateContextMeter(baseTokens, baseTokens > 0 ? t("chat.historyOnly") : t("chat.noContextTitle"));
   }
 
   private updateContextMeter(chars: number, label: string): void {
@@ -958,7 +970,7 @@ export class ChatView extends ItemView {
     const usedTokens = Math.max(0, Math.round(chars));
     const contextWindow = this.activeContextWindowTokens();
     const percent = Math.max(0, Math.min(100, Math.round((usedTokens / contextWindow) * 100)));
-    const summary = `${label}；估算 ${usedTokens}/${contextWindow} tokens，约占上下文 ${percent}%`;
+    const summary = tpl("chat.meterSummary", { label, used: usedTokens, window: contextWindow, percent });
     this.contextMeter.style.setProperty("--aio-context-percent", `${percent}%`);
     this.contextMeterValue.setText("");
     this.contextMeter.setAttr("title", summary);
@@ -1046,10 +1058,10 @@ export class ChatView extends ItemView {
 
   private async saveConversation(): Promise<void> {
     if (this.messages.length === 0) {
-      notify("暂无对话可保存");
+      notify(t("chat.noHistory"));
       return;
     }
-    const title = `AI 对话 ${timestamp()}`;
+    const title = tpl("chat.conversationTitle", { time: timestamp() });
     await this.plugin.chatService.saveConversation(this.messages, title);
   }
 
@@ -1064,7 +1076,7 @@ export class ChatView extends ItemView {
     this.typingEl = null;
     this.showEmptyState();
     this.refreshInputContext();
-    notify("已清空对话历史");
+    notify(t("chat.clearHistoryDone"));
     this.inputEl.focus();
   }
 }

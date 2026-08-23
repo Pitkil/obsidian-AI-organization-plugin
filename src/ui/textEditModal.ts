@@ -1,16 +1,17 @@
 import { App, Modal, setIcon } from "obsidian";
 import { notifyError } from "../utils/notify";
 import type { TextEditOp } from "../types";
+import { t, tpl } from "../i18n";
 
 // ============================================================
 // AI 编辑选中文本模态框（润色 / 扩写 / 续写 / 压缩 + 预览）
 // ============================================================
 
-const OPS: { value: TextEditOp; label: string; icon: string; desc: string }[] = [
-  { value: "polish", label: "润色", icon: "wand-2", desc: "优化表达与流畅度" },
-  { value: "expand", label: "扩写", icon: "expand", desc: "补充细节更丰富" },
-  { value: "continue", label: "续写", icon: "corner-down-right", desc: "自然衔接续写" },
-  { value: "summarize", label: "压缩", icon: "shrink", desc: "提炼要点精简" },
+const OPS: { value: TextEditOp; labelKey: string; icon: string; descKey: string }[] = [
+  { value: "polish", labelKey: "modal.opPolish", icon: "wand-2", descKey: "modal.opPolishDesc" },
+  { value: "expand", labelKey: "modal.opExpand", icon: "expand", descKey: "modal.opExpandDesc" },
+  { value: "continue", labelKey: "modal.opContinue", icon: "corner-down-right", descKey: "modal.opContinueDesc" },
+  { value: "summarize", labelKey: "modal.opSummarize", icon: "shrink", descKey: "modal.opSummarizeDesc" },
 ];
 
 export class TextEditModal extends Modal {
@@ -39,9 +40,9 @@ export class TextEditModal extends Modal {
 
     contentEl.createDiv({ cls: "aio-modal-header" }).createDiv({
       cls: "aio-modal-title",
-      text: "AI 编辑选中文本",
+      text: t("modal.editTitle"),
     });
-    contentEl.createDiv({ cls: "aio-modal-sub", text: `原文 ${this.sourceText.length} 字` });
+    contentEl.createDiv({ cls: "aio-modal-sub", text: tpl("modal.sourceChars", { n: this.sourceText.length }) });
 
     // 操作选择
     const opWrap = contentEl.createDiv({ cls: "aio-op-selector" });
@@ -50,8 +51,8 @@ export class TextEditModal extends Modal {
       const labelRow = btn.createDiv({ cls: "aio-op-label-row" });
       const icon = labelRow.createSpan({ cls: "aio-op-icon" });
       setIcon(icon, op.icon);
-      labelRow.createSpan({ text: op.label });
-      btn.createDiv({ cls: "aio-op-desc", text: op.desc });
+      labelRow.createSpan({ text: t(op.labelKey) });
+      btn.createDiv({ cls: "aio-op-desc", text: t(op.descKey) });
       btn.addEventListener("click", () => {
         this.currentOp = op.value;
         opWrap.querySelectorAll(".aio-op-btn").forEach((b) => b.removeClass("is-active"));
@@ -62,26 +63,26 @@ export class TextEditModal extends Modal {
 
     // 预览
     this.previewEl = contentEl.createDiv({ cls: "aio-modal-body aio-edit-preview" });
-    this.previewEl.createDiv({ cls: "aio-empty-tip", text: "正在生成…" });
+    this.previewEl.createDiv({ cls: "aio-empty-tip", text: t("modal.generating") });
 
     // 底部
     const footer = contentEl.createDiv({ cls: "aio-modal-footer" });
-    const cancelBtn = footer.createEl("button", { cls: "aio-btn aio-btn-ghost", text: "取消" });
+    const cancelBtn = footer.createEl("button", { cls: "aio-btn aio-btn-ghost", text: t("common.cancel") });
     cancelBtn.addEventListener("click", () => this.close());
-    this.regenBtn = footer.createEl("button", { cls: "aio-btn aio-btn-ghost", text: "重新生成" });
+    this.regenBtn = footer.createEl("button", { cls: "aio-btn aio-btn-ghost", text: t("modal.regenerate") });
     this.regenBtn.addEventListener("click", () => void this.generate());
-    this.applyBtn = footer.createEl("button", { cls: "aio-btn aio-btn-primary", text: "应用到选中文本" });
+    this.applyBtn = footer.createEl("button", { cls: "aio-btn aio-btn-primary", text: t("modal.applyToSelection") });
     this.applyBtn.addEventListener("click", async () => {
       if (!this.result) return;
       this.applyBtn.disabled = true;
-      this.applyBtn.setText("应用中…");
+      this.applyBtn.setText(t("modal.applying"));
       try {
         await this.onApply(this.result);
         this.close();
       } catch (err: any) {
-        notifyError(`应用失败：${err?.message || err}`, 6000);
+        notifyError(tpl("notify.applyFail", { msg: err?.message || err }), 6000);
         this.applyBtn.disabled = false;
-        this.applyBtn.setText("应用到选中文本");
+        this.applyBtn.setText(t("modal.applyToSelection"));
       }
     });
 
@@ -96,7 +97,7 @@ export class TextEditModal extends Modal {
     this.previewEl.empty();
     const loading = this.previewEl.createDiv({ cls: "aio-loading" });
     loading.createSpan({ cls: "aio-spinner" });
-    loading.createSpan({ text: "AI 正在生成…" });
+    loading.createSpan({ text: t("modal.aiGenerating") });
 
     try {
       this.result = await this.transform(this.sourceText, this.currentOp);

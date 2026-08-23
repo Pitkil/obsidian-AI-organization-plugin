@@ -3,6 +3,7 @@ import type AIOrganizerPlugin from "../main";
 import type { GeneratedMetadata } from "../types";
 import { extractJson, truncate } from "../utils";
 import { notifySuccess } from "../utils/notify";
+import { tpl } from "../i18n";
 
 // ============================================================
 // AI 元数据生成：标签 / 摘要 / 别名 → frontmatter
@@ -68,7 +69,7 @@ ${truncate(content, 8000)}
       }
     });
 
-    notifySuccess(`已生成元数据：${note.basename}`);
+    notifySuccess(tpl("notify.metadataDone", { name: note.basename }));
     return meta;
   }
 }

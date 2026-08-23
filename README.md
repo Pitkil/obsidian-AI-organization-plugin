@@ -2,7 +2,7 @@
 
 # AI Organizer for Obsidian
 
-AI Organizer is an all-in-one AI workspace for Obsidian. It brings contextual chat, selection actions, translation, OCR-assisted image understanding, smart note formatting, attachment organization, annotations, metadata generation, inbox sorting, link suggestions, and batch processing into one note-taking workflow.
+**An all-in-one AI workspace for Obsidian** — contextual chat, selection actions, translation, OCR-assisted image understanding, smart note formatting, attachment organization, Zotero-style annotations, metadata generation, inbox sorting, link suggestions, and batch processing, all inside your note-taking workflow.
 
 <p>
   <img alt="Version" src="https://img.shields.io/badge/version-0.1.1-0f766e">
@@ -23,10 +23,33 @@ AI Organizer is an all-in-one AI workspace for Obsidian. It brings contextual ch
   ·
   <a href="#usage">Usage</a>
   ·
-  <a href="#中文说明">中文说明</a>
+  <a href="#commands">Commands</a>
+</p>
+
+<p>
+  <strong>🌐 Language</strong>：
+  <a href="README.md"><strong>English</strong></a>
+  ·
+  <a href="README.zh-CN.md">中文</a>
 </p>
 
 </div>
+
+---
+
+### 📦 About this repository
+
+| | |
+| --- | --- |
+| **GitHub repository** | [Pitkil/obsidian-AI-organization-plugin](https://github.com/Pitkil/obsidian-AI-organization-plugin) |
+| **Obsidian plugin page** | <https://obsidian.md/plugins?id=ai-organizer> |
+| **Obsidian community plugins** | `Settings → Community plugins → Browse → search "AI Organizer"` |
+| **Install via BRAT** | `Obsidian://brat?plugin=Pitkil/obsidian-AI-organization-plugin` |
+| **Releases** | <https://github.com/Pitkil/obsidian-AI-organization-plugin/releases> |
+| **Issue tracker** | <https://github.com/Pitkil/obsidian-AI-organization-plugin/issues> |
+| **Author** | [Wang Yilai](https://github.com/Pitkil) |
+
+> 📌 **Not yet in the official marketplace?** Install manually or via [BRAT](https://github.com/TfTHacker/obsidian42-brat) using the links above. See [Installation](#installation) for step-by-step instructions.
 
 ---
 
@@ -125,9 +148,29 @@ Formatting results are reviewed before writing to the note. The plugin blocks em
 
 ## Installation
 
-### Manual installation
+### Option 1 — Official community plugin marketplace
 
-1. Download a release from GitHub.
+1. Open Obsidian and go to `Settings → Community plugins`.
+2. Turn off `Restricted mode` if it is on.
+3. Click `Browse`, search for **AI Organizer**, and click `Install`.
+4. After installation, click `Enable`.
+
+Direct link once listed: <https://obsidian.md/plugins?id=ai-organizer>
+
+### Option 2 — Install via BRAT (beta releases)
+
+[BRAT](https://github.com/TfTHacker/obsidian42-brat) installs plugins directly from a GitHub repository.
+
+1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) community plugin.
+2. Open its settings and choose `Add a beta plugin for testing`.
+3. Enter the repository: `Pitkil/obsidian-AI-organization-plugin`
+4. Click `Add Plugin` and enable **AI Organizer** afterwards.
+
+You can also open the pre-filled link: `Obsidian://brat?plugin=Pitkil/obsidian-AI-organization-plugin`
+
+### Option 3 — Manual installation
+
+1. Download the latest `main.js`, `manifest.json`, and `styles.css` from the [Releases](https://github.com/Pitkil/obsidian-AI-organization-plugin/releases) page (or from the repository root for the latest build).
 2. Create this folder in your vault:
 
    ```text
@@ -295,36 +338,10 @@ test/                        # Vitest tests
 
 MIT License. See [LICENSE](LICENSE).
 
-## 中文说明
+---
 
-AI Organizer 是面向 Obsidian 的上下文对话、文本处理与知识库整理工作台。它把选中文本处理、上下文对话、图片理解、AI 排版、附件整理、Zotero 式便签和知识库维护放进同一个笔记流程。
+## 中文
 
-### 核心能力
+完整的简体中文文档见 **[README.zh-CN.md](README.zh-CN.md)**。
 
-| 能力 | 说明 |
-| --- | --- |
-| 多模型 Profile | 每个模型独立配置提供商、Base URL、API Key、模型名、模型类型和上下文窗口。 |
-| 文本 / 视觉模型分离 | 对话、翻译、排版使用文本模型；图片上下文优先使用已选视觉模型。 |
-| 选中文本快捷栏 | 正文中选中文字后浮出工具栏，支持翻译、解释、润色、扩写、总结、便签和询问。 |
-| 翻译结果小窗 | 翻译结果以小窗显示，可切换语言、复制、替换原文、保存为便签。 |
-| Zotero 式便签 | 便签作为插件批注保存，不直接写入 Markdown 正文，支持定位、编辑、删除和导出。 |
-| AI 对话侧边栏 | 支持当前笔记、选中文本、图片附件和历史消息；工作台可收纳。 |
-| 图片理解 | 自动解析当前笔记、选区和对话附件中的图片；视觉模型失败时用内置 OCR 兜底。 |
-| AI 排版 | 支持全文排版、Markdown 规范、结构优化、间距整理和自定义模板，应用前可预览差异。 |
-| 图片整理 | 每次整理可指定目标文件夹，移动图片后自动更新 Wiki 链接和 Markdown 图片链接。 |
-
-### 快速开始
-
-1. 打开 `设置 -> AI Organizer`。
-2. 新增或编辑模型 Profile，填写提供商、Base URL、API Key 和模型名。
-3. 至少指定一个文本模型；需要处理图片时，再指定一个视觉模型。
-4. 打开一篇笔记，选中文字即可使用浮动快捷栏。
-5. 通过命令面板运行 `打开 AI 对话面板`，开始基于当前笔记对话。
-
-### 注意事项
-
-- 当前笔记上下文会截断，避免一次请求塞入过多内容。
-- 图片上下文默认有单次读取上限，可在设置中调整。
-- 视觉模型只会使用当前选中的默认视觉模型。
-- 内置 OCR 只负责提取图片文字，不等于真正的视觉理解。
-- 便签不写入 Markdown 正文，因此跨设备同步时需要同步 Obsidian 插件数据。
+For the full English documentation, see **[README.md](README.md)**.

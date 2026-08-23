@@ -4,6 +4,7 @@ import type { ChatImagePart, ChatMessage, ChatOptions, ModelKind, ModelProfile, 
 import { getActiveProvider } from "../providers";
 import { timestamp } from "../utils";
 import { notifySuccess } from "../utils/notify";
+import { t, tpl } from "../i18n";
 
 export const CHAT_NOTE_CONTEXT_LIMIT = 4000;
 export const CHAT_SELECTION_CONTEXT_LIMIT = 4000;
@@ -47,9 +48,7 @@ export class ChatService {
       (profile ? this.plugin.providers.find((item) => item.id === profile.providerId) ?? null : null) ??
       this.getActiveProvider();
     if (!provider || (!profile && !provider.isConfigured())) {
-      throw new Error(
-        "未配置可用的模型。请先在「设置 → AI Organizer」中填写 API Key 与模型名称。"
-      );
+      throw new Error(t("notify.modelNotConfigured"));
     }
     const s = this.plugin.settings;
     const cfg =
@@ -130,21 +129,21 @@ export class ChatService {
       const content = opts.noteContext.content.trim();
       const snippet =
         content.length > CHAT_NOTE_CONTEXT_LIMIT
-          ? content.slice(0, CHAT_NOTE_CONTEXT_LIMIT) + "\n…[过长已截断]…"
+          ? content.slice(0, CHAT_NOTE_CONTEXT_LIMIT) + t("chat.truncatedSuffix")
           : content;
       contextParts.push(
-        `【当前笔记：${opts.noteContext.name}】\n\`\`\`markdown\n${snippet}\n\`\`\``
+        `${tpl("chat.injectNoteLabel", { name: opts.noteContext.name })}\n\`\`\`markdown\n${snippet}\n\`\`\``
       );
     }
 
     if (opts.selection && opts.selection.trim()) {
       contextParts.push(
-        `【用户选中文本】\n\`\`\`\n${opts.selection.trim().slice(0, CHAT_SELECTION_CONTEXT_LIMIT)}\n\`\`\``
+        `${t("chat.injectSelectionLabel")}\n\`\`\`\n${opts.selection.trim().slice(0, CHAT_SELECTION_CONTEXT_LIMIT)}\n\`\`\``
       );
     }
 
     if (opts.imageContext?.trim()) {
-      contextParts.push(`【图片上下文】\n${opts.imageContext.trim()}`);
+      contextParts.push(`${t("chat.injectImageContextLabel")}\n${opts.imageContext.trim()}`);
     }
 
     if (opts.extraSystem) {
@@ -153,7 +152,7 @@ export class ChatService {
 
     let userContent = userInput;
     if (contextParts.length > 0) {
-      userContent = `${contextParts.join("\n\n")}\n\n【我的问题】\n${userInput}`;
+      userContent = `${contextParts.join("\n\n")}\n\n${t("chat.injectQuestionLabel")}\n${userInput}`;
     }
 
     messages.push({ role: "system", content: system });
@@ -164,29 +163,29 @@ export class ChatService {
   async analyzeImages(images: ChatImagePart[], sourceName: string): Promise<string> {
     if (images.length === 0) return "";
     const profile = this.getProfile(undefined, "vision");
-    const names = images.map((image) => image.name || "未命名图片").join("、");
+    const names = images.map((image) => image.name || t("chat.unnamedImage")).join("、");
     if (!profile) {
-      return `检测到图片：${names}。未配置视觉模型，因此没有读取图片内容；文本模型只能参考图片链接和周围文本。`;
+      return tpl("chat.visionNotConfigured", { names });
     }
 
     try {
       const content: ChatMessage["content"] = [
         {
           type: "text",
-          text: `请分析这些来自「${sourceName}」的图片，提取对理解文档有用的信息。用中文简洁输出：图片内容、重要文字、图表/界面含义，以及和文档可能相关的点。`,
+          text: tpl("chat.visionAnalyzePrompt", { source: sourceName, lang: t("chat.outputLang") }),
         },
         ...images,
       ];
       const result = await this.chat(
         [
-          { role: "system", content: "你是图片理解助手，只输出可交给文本模型使用的图片上下文摘要。" },
+          { role: "system", content: t("chat.visionSystemPrompt") },
           { role: "user", content },
         ],
         { profileId: profile.id, profileKind: "vision" }
       );
-      return `视觉模型「${profile.name || profile.model}」分析结果：\n${result.trim()}`;
+      return `${tpl("chat.visionResult", { name: profile.name || profile.model })}\n${result.trim()}`;
     } catch (err: any) {
-      return `检测到图片：${names}。视觉模型分析失败：${err?.message || err}。文本模型只能参考图片链接和周围文本。`;
+      return tpl("chat.visionFailed", { names, msg: err?.message || err });
     }
   }
 
@@ -196,11 +195,11 @@ export class ChatService {
     await this.plugin.ensureFolder(folder);
 
     const lines: string[] = [];
-    lines.push(`# ${title || `AI 对话 ${timestamp()}`}`);
+    lines.push(`# ${title || tpl("chat.conversationTitle", { time: timestamp() })}`);
     lines.push("");
     for (const m of messages) {
       if (m.role === "system") continue;
-      const label = m.role === "user" ? "👤 用户" : "🤖 AI";
+      const label = m.role === "user" ? t("chat.saveUserLabel") : t("chat.saveAILabel");
       lines.push(`> [!quote] ${label}`);
       lines.push(">");
       lines.push(
@@ -213,16 +212,16 @@ export class ChatService {
       lines.push("");
     }
 
-    const fileName = `${folder}/${title || `AI 对话 ${timestamp()}`}.md`;
+    const fileName = `${folder}/${title || tpl("chat.conversationTitle", { time: timestamp() })}.md`;
     const file = await this.plugin.app.vault.create(fileName, lines.join("\n"));
-    notifySuccess(`对话已保存：${file.path}`);
+      notifySuccess(tpl("chat.savedConversation", { path: file.path }));
     return file;
   }
 
   private messageToText(content: ChatMessage["content"]): string {
     if (typeof content === "string") return content;
     return content
-      .map((part) => (part.type === "text" ? part.text : `[图片：${part.name || part.mimeType}]`))
+      .map((part) => (part.type === "text" ? part.text : tpl("chat.imagePartText", { name: part.name || part.mimeType })))
       .join("\n");
   }
 }

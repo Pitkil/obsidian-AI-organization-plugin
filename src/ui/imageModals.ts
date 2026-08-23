@@ -1,5 +1,6 @@
 import { App, Modal, Setting, TFile, setIcon } from "obsidian";
 import type { OrganizedImage } from "../types";
+import { t, tpl } from "../i18n";
 
 // ============================================================
 // 图片整理结果 / 孤儿附件管理 模态框
@@ -26,16 +27,16 @@ export class ImageResultModal extends Modal {
     const moved = this.result.items.filter((i) => i.moved);
     contentEl.createDiv({ cls: "aio-modal-header" }).createDiv({
       cls: "aio-modal-title",
-      text: `图片整理完成`,
+      text: t("modal.imageDoneTitle"),
     });
 
     const stats = contentEl.createDiv({ cls: "aio-modal-stats" });
-    stats.createSpan({ cls: "aio-stat aio-stat-add", text: `移动 ${moved.length} 张` });
-    stats.createSpan({ cls: "aio-stat-neutral", text: `目标：${this.result.targetFolder || "库根目录"}` });
+    stats.createSpan({ cls: "aio-stat aio-stat-add", text: tpl("modal.movedCount", { n: moved.length }) });
+    stats.createSpan({ cls: "aio-stat-neutral", text: tpl("modal.targetFolderStat", { folder: this.result.targetFolder || t("modal.vaultRoot") }) });
     if (this.result.orphanCount > 0) {
-      stats.createSpan({ cls: "aio-stat-warn", text: `发现 ${this.result.orphanCount} 个未引用附件` });
+      stats.createSpan({ cls: "aio-stat-warn", text: tpl("modal.orphanFound", { n: this.result.orphanCount }) });
     } else {
-      stats.createSpan({ cls: "aio-stat-neutral", text: "无未引用附件" });
+      stats.createSpan({ cls: "aio-stat-neutral", text: t("modal.noOrphans") });
     }
 
     if (moved.length > 0) {
@@ -49,14 +50,14 @@ export class ImageResultModal extends Modal {
         main.createDiv({ cls: "aio-list-sub", text: `${item.oldPath}  →  ${item.newPath}` });
       }
       if (moved.length > 50) {
-        contentEl.createDiv({ cls: "aio-modal-sub", text: `…等共 ${moved.length} 张` });
+        contentEl.createDiv({ cls: "aio-modal-sub", text: tpl("modal.andMoreImages", { n: moved.length }) });
       }
     } else {
-      contentEl.createDiv({ cls: "aio-modal-sub", text: "没有需要移动的图片（可能已在目标目录）。" });
+      contentEl.createDiv({ cls: "aio-modal-sub", text: t("modal.nothingToMove") });
     }
 
     const footer = contentEl.createDiv({ cls: "aio-modal-footer" });
-    const okBtn = footer.createEl("button", { cls: "aio-btn aio-btn-primary", text: "完成" });
+    const okBtn = footer.createEl("button", { cls: "aio-btn aio-btn-primary", text: t("modal.done") });
     okBtn.addEventListener("click", () => this.close());
   }
 
@@ -87,19 +88,19 @@ export class ImageOrganizeModal extends Modal {
 
     contentEl.createDiv({ cls: "aio-modal-header" }).createDiv({
       cls: "aio-modal-title",
-      text: "整理图片",
+      text: t("modal.organizeImages"),
     });
     contentEl.createDiv({
       cls: "aio-modal-sub",
-      text: "选择本次图片要移动到的文件夹。移动后会同步更新当前笔记中的图片链接。",
+      text: t("modal.organizeImagesSub"),
     });
 
     new Setting(contentEl)
-      .setName("目标文件夹")
-      .setDesc("相对库根目录，例如：附件/项目A、素材/截图。留空表示库根目录。")
+      .setName(t("modal.targetFolderName"))
+      .setDesc(t("modal.targetFolderDesc"))
       .addText((text) =>
         text
-          .setPlaceholder("附件/当前项目")
+          .setPlaceholder(t("modal.targetFolderPlaceholder"))
           .setValue(this.targetFolder)
           .onChange((value) => {
             this.targetFolder = value.trim().replace(/^\/+|\/+$/g, "");
@@ -107,8 +108,8 @@ export class ImageOrganizeModal extends Modal {
       );
 
     new Setting(contentEl)
-      .setName("自动重命名")
-      .setDesc("按当前笔记名生成图片名，避免图库里出现 IMG_001 这类弱语义文件名。")
+      .setName(t("st.autoRename"))
+      .setDesc(t("modal.autoRenameDesc"))
       .addToggle((toggle) =>
         toggle.setValue(this.renameImages).onChange((value) => {
           this.renameImages = value;
@@ -116,13 +117,13 @@ export class ImageOrganizeModal extends Modal {
       );
 
     const footer = contentEl.createDiv({ cls: "aio-modal-footer" });
-    const cancelBtn = footer.createEl("button", { cls: "aio-btn aio-btn-ghost", text: "取消" });
+    const cancelBtn = footer.createEl("button", { cls: "aio-btn aio-btn-ghost", text: t("common.cancel") });
     cancelBtn.addEventListener("click", () => this.close());
 
-    const submitBtn = footer.createEl("button", { cls: "aio-btn aio-btn-primary", text: "开始整理" });
+    const submitBtn = footer.createEl("button", { cls: "aio-btn aio-btn-primary", text: t("modal.startOrganize") });
     submitBtn.addEventListener("click", async () => {
       submitBtn.disabled = true;
-      submitBtn.setText("整理中…");
+      submitBtn.setText(t("modal.organizing"));
       try {
         await this.onSubmit({
           targetFolder: this.targetFolder,
@@ -131,7 +132,7 @@ export class ImageOrganizeModal extends Modal {
         this.close();
       } catch {
         submitBtn.disabled = false;
-        submitBtn.setText("重试");
+        submitBtn.setText(t("common.retry"));
       }
     });
   }
@@ -157,11 +158,11 @@ export class OrphanModal extends Modal {
 
     contentEl.createDiv({ cls: "aio-modal-header" }).createDiv({
       cls: "aio-modal-title",
-      text: `未引用附件（${this.orphans.length} 个）`,
+      text: tpl("modal.orphanTitle", { n: this.orphans.length }),
     });
     contentEl.createDiv({
       cls: "aio-modal-sub",
-      text: "以下文件没有被任何笔记引用。可移到「未引用附件」文件夹（不删除，安全）。",
+      text: t("modal.orphanSub"),
     });
 
     const list = contentEl.createDiv({ cls: "aio-list aio-batch-list" });
@@ -174,25 +175,25 @@ export class OrphanModal extends Modal {
       main.createDiv({ cls: "aio-list-sub", text: f.path });
     }
     if (this.orphans.length > 100) {
-      contentEl.createDiv({ cls: "aio-modal-sub", text: `…等共 ${this.orphans.length} 个` });
+      contentEl.createDiv({ cls: "aio-modal-sub", text: tpl("modal.orphanAndMore", { n: this.orphans.length }) });
     }
 
     const footer = contentEl.createDiv({ cls: "aio-modal-footer" });
-    const cancelBtn = footer.createEl("button", { cls: "aio-btn aio-btn-ghost", text: "关闭" });
+    const cancelBtn = footer.createEl("button", { cls: "aio-btn aio-btn-ghost", text: t("common.close") });
     cancelBtn.addEventListener("click", () => this.close());
     const moveBtn = footer.createEl("button", {
       cls: "aio-btn aio-btn-warn",
-      text: `移到「未引用附件」(${this.orphans.length})`,
+      text: tpl("modal.moveToOrphans", { n: this.orphans.length }),
     });
     moveBtn.addEventListener("click", async () => {
       moveBtn.disabled = true;
-      moveBtn.setText("移动中…");
+      moveBtn.setText(t("modal.moving"));
       try {
         await this.onMove(this.orphans);
         this.close();
       } catch (err: any) {
         moveBtn.disabled = false;
-        moveBtn.setText("重试");
+        moveBtn.setText(t("common.retry"));
       }
     });
   }

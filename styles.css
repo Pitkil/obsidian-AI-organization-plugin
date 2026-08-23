@@ -691,14 +691,26 @@
 .aio-chat-controls {
   overflow: hidden;
   max-height: 340px;
-  margin: 10px 12px 0;
-  padding: 12px;
+  margin: 8px 12px 0;
+  padding: 10px;
   border: 1px solid var(--aio-line);
-  border-radius: 14px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--aio-surface) 90%, transparent);
   box-shadow: 0 10px 26px rgba(28, 36, 33, 0.06);
   flex-shrink: 0;
   transition: max-height 180ms ease, margin 180ms ease, padding 180ms ease, opacity 160ms ease;
+}
+.aio-workbench-head {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  margin: 0 2px 9px;
+}
+.aio-workbench-title {
+  color: var(--aio-ink);
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.25;
 }
 .aio-chat-controls.is-collapsed {
   max-height: 0;
@@ -711,16 +723,16 @@
 .aio-chat-ctx {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin: 0 0 9px;
 }
 .aio-toggle {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 30px;
-  padding: 4px 12px;
+  min-height: 29px;
+  padding: 3px 10px;
   border: 1px solid var(--aio-line);
   border-radius: 9px;
   background: var(--aio-surface);
@@ -760,16 +772,16 @@
 .aio-chat-tools {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 7px;
 }
 .aio-tool-btn {
   min-width: 0;
-  min-height: 36px;
+  min-height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 6px;
+  padding: 6px 5px;
   border: 1px solid var(--aio-line);
   border-radius: 10px;
   background: var(--aio-surface);
@@ -808,13 +820,18 @@
 .aio-chat-panel-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 10px;
-  padding-top: 10px;
+  gap: 7px;
+  margin-top: 9px;
+  padding-top: 9px;
   border-top: 1px solid var(--aio-line);
 }
 .aio-chat-panel-actions .aio-icon-btn {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
   border: 1px solid var(--aio-line);
+  border-radius: 9px;
   background: var(--aio-surface);
 }
 

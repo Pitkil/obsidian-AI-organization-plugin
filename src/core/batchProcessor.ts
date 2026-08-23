@@ -3,6 +3,7 @@ import type AIOrganizerPlugin from "../main";
 import type { BatchOperation } from "../types";
 import { sleep } from "../utils";
 import { notifyError, notifySuccess } from "../utils/notify";
+import { t, tpl } from "../i18n";
 
 // ============================================================
 // 批量 AI 处理：对多篇笔记批量执行 排版 / 元数据 / 翻译
@@ -37,12 +38,12 @@ export class BatchProcessor {
             if (formatted !== content) {
               await this.plugin.app.vault.modify(file, formatted);
             }
-            results.push({ file, ok: true, message: "排版完成" });
+            results.push({ file, ok: true, message: t("batch.formatDone") });
             break;
           }
           case "metadata": {
             await this.plugin.metadataGenerator.applyToNote(file);
-            results.push({ file, ok: true, message: "元数据已生成" });
+            results.push({ file, ok: true, message: t("batch.metadataDone") });
             break;
           }
           case "translate": {
@@ -51,7 +52,7 @@ export class BatchProcessor {
             if (translated !== content) {
               await this.plugin.app.vault.modify(file, translated);
             }
-            results.push({ file, ok: true, message: "翻译完成" });
+            results.push({ file, ok: true, message: t("batch.translateDone") });
             break;
           }
         }
@@ -63,9 +64,9 @@ export class BatchProcessor {
 
     const failed = results.filter((r) => !r.ok).length;
     if (failed > 0) {
-      notifyError(`批量处理完成：成功 ${results.length - failed}，失败 ${failed}`, 8000);
+      notifyError(tpl("batch.doneWithFailures", { ok: results.length - failed, fail: failed }), 8000);
     } else {
-      notifySuccess(`批量处理完成：${results.length} 篇`);
+      notifySuccess(tpl("notify.batchDone", { n: results.length }));
     }
     return results;
   }

@@ -3,6 +3,7 @@ import type AIOrganizerPlugin from "../main";
 import type { LinkSuggestion } from "../types";
 import { extractJson, truncate } from "../utils";
 import { notify, notifySuccess } from "../utils/notify";
+import { t, tpl } from "../i18n";
 
 // ============================================================
 // AI 双链建议：根据当前笔记内容推荐相关笔记，建立双向链接
@@ -97,7 +98,7 @@ ${candidates
   /** 将建议链接追加到当前笔记末尾 */
   async appendLinks(note: TFile, suggestions: LinkSuggestion[]): Promise<number> {
     if (suggestions.length === 0) {
-      notify("无可添加的相关链接");
+      notify(t("notify.noLinks"));
       return 0;
     }
     const content = await this.plugin.app.vault.read(note);
@@ -110,7 +111,7 @@ ${candidates
     ];
     const newContent = content.trimEnd() + "\n" + lines.join("\n");
     await this.plugin.app.vault.modify(note, newContent);
-    notifySuccess(`已添加 ${suggestions.length} 个相关链接`);
+    notifySuccess(tpl("notify.linksAdded", { n: suggestions.length }));
     return suggestions.length;
   }
 }

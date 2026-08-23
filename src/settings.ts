@@ -1,5 +1,6 @@
 import { Plugin } from "obsidian";
 import type { ChatMessage, CustomPromptTemplate, ModelProfile, ProviderId } from "./types";
+import type { UILang } from "./i18n";
 
 // ============================================================
 // 插件设置结构
@@ -23,6 +24,8 @@ export interface AIOAnnotation {
 }
 
 export interface AIOrganizerSettings {
+  /** 界面语言（zh / en） */
+  uiLanguage: UILang;
   /** 当前激活的模型提供商 */
   activeProvider: ProviderId;
   activeModelProfileId: string;
@@ -152,6 +155,7 @@ export interface AIOrganizerSettings {
 }
 
 export const DEFAULT_SETTINGS: AIOrganizerSettings = {
+  uiLanguage: "zh",
   activeProvider: "openaiCompatible",
   activeModelProfileId: "",
   activeTextModelProfileId: "",
@@ -284,6 +288,7 @@ export function deepMerge<T>(base: T, override: Partial<T>): T {
 }
 
 export function normalizeSettings(settings: AIOrganizerSettings): AIOrganizerSettings {
+  if (settings.uiLanguage !== "en") settings.uiLanguage = "zh";
   settings.annotations = (settings.annotations ?? []).filter(
     (item) => item && item.filePath && item.quote && item.type
   );

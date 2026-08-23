@@ -3,6 +3,7 @@ import type AIOrganizerPlugin from "../main";
 import type { OrganizeResult, OrganizedImage } from "../types";
 import { sanitizeFileName, uniquePath } from "../utils";
 import { notifyError } from "../utils/notify";
+import { tpl } from "../i18n";
 
 // ============================================================
 // 一键图片整理服务
@@ -131,7 +132,7 @@ export class ImageOrganizer {
         items.push({ name: newName, ext, oldPath: file.path, newPath, moved: true });
         movedCount++;
       } catch (err: any) {
-        notifyError(`移动失败：${file.name} → ${err?.message || err}`, 6000);
+        notifyError(tpl("notify.moveFail", { name: file.name, msg: err?.message || err }), 6000);
       }
     }
 

@@ -2,6 +2,7 @@ import { App, Editor, EditorPosition, MarkdownView, Modal, Plugin, TFile, setIco
 import { computeQuoteAnchor, findBestPartialMatch, isSubstantialMatch, posFromOffset, resolveQuoteRange } from "./utils/position";
 import { capScrollPositions, selectionSignature } from "./utils";
 import { notify, notifyError, notifyLoading, notifySuccess } from "./utils/notify";
+import { setUILang, t, tpl } from "./i18n";
 import { StateEffect } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
@@ -65,14 +66,14 @@ class ConfirmModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("aio-confirm-modal");
-    contentEl.createEl("h3", { text: "确认操作" });
+    contentEl.createEl("h3", { text: t("modal.confirmTitle") });
     contentEl.createDiv({ cls: "aio-confirm-message", text: this.message });
     const actions = contentEl.createDiv({ cls: "aio-confirm-actions" });
-    const cancelBtn = actions.createEl("button", { text: "取消", attr: { type: "button" } });
+    const cancelBtn = actions.createEl("button", { text: t("common.cancel"), attr: { type: "button" } });
     cancelBtn.addEventListener("click", () => this.close());
     const confirmBtn = actions.createEl("button", {
       cls: "mod-warning",
-      text: "删除",
+      text: t("common.delete"),
       attr: { type: "button" },
     });
     confirmBtn.addEventListener("click", () => {
@@ -104,8 +105,8 @@ class AnnotationMarkerWidget extends WidgetType {
     marker.type = "button";
     marker.className = this.lost ? "aio-annotation-marker is-lost" : "aio-annotation-marker";
     marker.title = this.lost
-      ? "便签位置已失效（原文被修改），点击查看详情"
-      : `便签 ${this.annotations.length} 条`;
+      ? t("note.markerLost")
+      : tpl("note.markerCount", { n: this.annotations.length });
     marker.setAttribute("aria-label", marker.title);
     marker.textContent = this.annotations.length > 1 ? String(this.annotations.length) : "";
     marker.addEventListener("mousedown", (evt: MouseEvent) => evt.preventDefault());
@@ -150,6 +151,8 @@ export default class AIOrganizerPlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    // 应用界面语言
+    setUILang(this.settings.uiLanguage);
     // 从磁盘恢复上次会话记录的浏览位置（跨重启持久化）
     this.notePositions = new Map(
       Object.entries(this.settings.scrollRestore.positions ?? {})
@@ -171,10 +174,10 @@ export default class AIOrganizerPlugin extends Plugin {
     this.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf, this));
 
     // 功能区图标
-    this.addRibbonIcon("bot", "AI Organizer — 打开 AI 对话", () => {
+    this.addRibbonIcon("bot", `AI Organizer — ${t("cmd.openChat")}`, () => {
       void this.activateChatView();
     });
-    this.addRibbonIcon("settings-2", "AI Organizer — 打开设置", () => {
+    this.addRibbonIcon("settings-2", `AI Organizer — ${t("cmd.openSettings")}`, () => {
       this.openSettings();
     });
 
@@ -186,7 +189,7 @@ export default class AIOrganizerPlugin extends Plugin {
 
     // 排版前校验配置（温和提示）
     if (!getActiveProvider(this.settings, this.providers)) {
-      notify("尚未配置模型，请在设置中填写 API Key");
+      notify(t("notify.modelNotConfigured"));
     }
   }
 
@@ -211,81 +214,81 @@ export default class AIOrganizerPlugin extends Plugin {
 
     this.addCommand({
       id: "open-chat",
-      name: "打开 AI 对话面板",
+      name: t("cmd.openChat"),
       callback: () => app.activateChatView(),
     });
 
     this.addCommand({
       id: "close-chat",
-      name: "关闭 AI 对话侧边栏",
+      name: t("cmd.closeChat"),
       callback: () => void app.closeChatView(),
     });
 
     this.addCommand({
       id: "open-settings",
-      name: "打开设置",
+      name: t("cmd.openSettings"),
       callback: () => app.openSettings(),
     });
 
     this.addCommand({
       id: "restore-last-scroll-position",
-      name: "回到上次浏览位置",
+      name: t("cmd.restorePosition"),
       callback: () => app.restoreCurrentScrollPosition(true),
     });
 
     this.addCommand({
       id: "format-active-note",
-      name: "AI 排版当前笔记",
+      name: t("cmd.formatNote"),
       callback: () => app.formatNote(),
     });
 
     this.addCommand({
       id: "organize-active-images",
-      name: "一键整理当前笔记的图片",
+      name: t("cmd.organizeImages"),
       callback: () => app.organizeImages(),
     });
 
     this.addCommand({
       id: "find-orphan-attachments",
-      name: "扫描未引用附件",
+      name: t("cmd.scanOrphans"),
       callback: () => app.scanOrphans(),
     });
 
     this.addCommand({
       id: "generate-note-metadata",
-      name: "AI 生成标签/摘要/别名",
+      name: t("cmd.generateMetadata"),
       callback: () => app.generateMetadata(),
     });
 
     this.addCommand({
       id: "organize-inbox",
-      name: "智能整理收件箱",
+      name: t("cmd.organizeInbox"),
       callback: () => app.organizeInbox(),
     });
 
     this.addCommand({
       id: "suggest-links",
-      name: "AI 推荐相关笔记（双链）",
+      name: t("cmd.suggestLinks"),
       callback: () => app.suggestLinks(),
     });
 
     this.addCommand({
       id: "batch-process",
-      name: "批量 AI 处理",
+      name: t("cmd.batchProcess"),
       callback: () => app.batchProcess(),
     });
 
     this.addCommand({
       id: "translate-selection",
-      name: "AI 翻译选中文本",
+      name: t("cmd.translateSelection"),
       editorCallback: (_editor, view) => {
         if (!view.editor) {
-          notify("请先在编辑器中选中文本");
+          notify(t("toolbar.selectFirst"));
           return;
         }
         const sel = view.editor.getSelection();
         if (!sel) {
-          notify("请先在编辑器中选中文本");
+          notify(t("toolbar.selectFirst"));
           return;
         }
         void app.translateText(sel);
@@ -294,15 +297,15 @@ export default class AIOrganizerPlugin extends Plugin {
 
     this.addCommand({
       id: "edit-selection",
-      name: "AI 编辑选中文本（润色/扩写/续写/压缩）",
+      name: t("cmd.editSelection"),
       editorCallback: (_editor, view) => {
         if (!view.editor) {
-          notify("请先在编辑器中选中文本");
+          notify(t("toolbar.selectFirst"));
           return;
         }
         const sel = view.editor.getSelection();
         if (!sel) {
-          notify("请先在编辑器中选中文本");
+          notify(t("toolbar.selectFirst"));
           return;
         }
         const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -313,7 +316,7 @@ export default class AIOrganizerPlugin extends Plugin {
           (text, op) => this.textEditor.transform(text, op),
           async (result) => {
             if (editor) {
-              this.applyReplacement(editor, editor.getCursor("from"), editor.getCursor("to"), result, "已应用到选中文本");
+              this.applyReplacement(editor, editor.getCursor("from"), editor.getCursor("to"), result, t("edit.appliedToSelection"));
             }
           }
         ).open();
@@ -322,7 +325,7 @@ export default class AIOrganizerPlugin extends Plugin {
 
     this.addCommand({
       id: "export-annotations-to-note",
-      name: "导出当前笔记便签为笔记",
+      name: t("cmd.exportAnnotations"),
       callback: () => app.exportAnnotationsToNote(),
     });
   }
@@ -512,44 +515,44 @@ export default class AIOrganizerPlugin extends Plugin {
     });
 
     const langSelect = this.createSelectionLanguageSelect(aiRow);
-    this.createSelectionAction(aiRow, "翻译", "languages", "翻译选中文本", () => {
+    this.createSelectionAction(aiRow, t("toolbar.translate"), "languages", t("toolbar.translateTitle"), () => {
       const snapshot = this.getSelectionSnapshot();
       this.hideSelectionToolbar();
       if (snapshot) void this.translateText(snapshot.text, snapshot, langSelect.value || this.settings.translate.defaultTarget);
     });
-    this.createSelectionAction(aiRow, "解释", "book-open", "解释选中文本", () => {
+    this.createSelectionAction(aiRow, t("toolbar.explain"), "book-open", t("toolbar.explainTitle"), () => {
       const snapshot = this.getSelectionSnapshot();
       this.hideSelectionToolbar();
       if (snapshot) void this.askSelectionInChat(snapshot);
     });
-    this.createSelectionAction(aiRow, "润色", "wand-2", "润色选中文本", () => {
+    this.createSelectionAction(aiRow, t("toolbar.polish"), "wand-2", t("toolbar.polishTitle"), () => {
       const snapshot = this.getSelectionSnapshot();
       this.hideSelectionToolbar();
       if (snapshot) this.openSelectionEditModal(snapshot, "polish");
     });
-    this.createSelectionAction(aiRow, "扩写", "expand", "扩写选中文本", () => {
+    this.createSelectionAction(aiRow, t("toolbar.expand"), "expand", t("toolbar.expandTitle"), () => {
       const snapshot = this.getSelectionSnapshot();
       this.hideSelectionToolbar();
       if (snapshot) this.openSelectionEditModal(snapshot, "expand");
     });
-    this.createSelectionAction(aiRow, "总结", "list", "总结选中文本", () => {
+    this.createSelectionAction(aiRow, t("toolbar.summarize"), "list", t("toolbar.summarizeTitle"), () => {
       const snapshot = this.getSelectionSnapshot();
       this.hideSelectionToolbar();
       if (snapshot) this.openSelectionEditModal(snapshot, "summarize");
     });
-    this.createSelectionAction(aiRow, "便签", "sticky-note", "给选中文本插入自己的想法", () => {
+    this.createSelectionAction(aiRow, t("toolbar.note"), "sticky-note", t("toolbar.noteTitle"), () => {
       const snapshot = this.getSelectionSnapshot();
       this.hideSelectionToolbar();
       if (snapshot) this.showThoughtNotePopup(snapshot);
     });
-    this.createSelectionAction(aiRow, "询问", "message-square", "把选中文本放入对话上下文", () => {
+    this.createSelectionAction(aiRow, t("toolbar.ask"), "message-square", t("toolbar.askTitle"), () => {
       const snapshot = this.getSelectionSnapshot();
       this.hideSelectionToolbar();
       if (snapshot) void this.focusSelectionInChat(snapshot);
     });
     const closeBtn = aiRow.createEl("button", {
       cls: "aio-selection-close",
-      attr: { type: "button", title: "关闭", "aria-label": "关闭选中文本工具栏" },
+      attr: { type: "button", title: t("toolbar.close"), "aria-label": t("toolbar.closeAria") },
     });
     closeBtn.setText("×");
     const close = (evt: Event) => this.closeSelectionToolbar(evt);
@@ -592,7 +595,7 @@ export default class AIOrganizerPlugin extends Plugin {
     const wrap = toolbar.createDiv({ cls: "aio-selection-lang" });
     const select = wrap.createEl("select", {
       cls: "aio-selection-lang-select",
-      attr: { title: "设置翻译目标语言", "aria-label": "设置翻译目标语言" },
+      attr: { title: t("toolbar.langTitle"), "aria-label": t("toolbar.langTitle") },
     });
     for (const lang of this.translationLanguages(this.settings.translate.defaultTarget)) {
       select.createEl("option", { value: lang, text: lang });
@@ -722,10 +725,10 @@ export default class AIOrganizerPlugin extends Plugin {
     const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!mdView?.editor || mdView.file?.path !== snapshot.filePath || samePosition(snapshot.from, snapshot.to)) {
       await navigator.clipboard.writeText(result);
-      notify("选区无法替换，结果已复制到剪贴板");
+      notify(t("notify.copiedToClipboard"));
       return;
     }
-    this.applyReplacement(mdView.editor, snapshot.from, snapshot.to, result, "已应用到选中文本");
+    this.applyReplacement(mdView.editor, snapshot.from, snapshot.to, result, t("edit.appliedToSelection"));
   }
 
   /** 应用 AI 替换：替换 → 高亮选中修改范围 → 显示撤回按钮（参考 Copilot 的 accept/undo） */
@@ -734,7 +737,7 @@ export default class AIOrganizerPlugin extends Plugin {
     from: EditorPosition,
     to: EditorPosition,
     result: string,
-    label = "已应用到选中文本"
+    label = t("edit.appliedToSelection")
   ): void {
     editor.replaceRange(result, from, to);
     const newTo = this.positionAfterText(from, result);
@@ -743,7 +746,7 @@ export default class AIOrganizerPlugin extends Plugin {
     // 高亮期间不让选中工具栏弹出，避免“关不掉”的感觉
     this.selectionToolbarSuppressedUntil = Date.now() + 1800;
     this.showEditUndoPill(editor, from, newTo);
-    notifySuccess(`${label}（可撤回）`);
+    notifySuccess(`${label}${t("undo.appliedSuffix")}`);
     // 短暂高亮后收拢光标，避免后续输入误覆盖
     window.setTimeout(() => {
       const cursor = editor.getCursor();
@@ -767,9 +770,9 @@ export default class AIOrganizerPlugin extends Plugin {
     this.hideEditUndoPill();
     const pill = document.body.createDiv({ cls: "aio-edit-undo" });
     setIcon(pill.createSpan({ cls: "aio-edit-undo-icon" }), "check");
-    pill.createSpan({ cls: "aio-edit-undo-text", text: "已应用" });
-    const undoBtn = pill.createEl("button", { cls: "aio-edit-undo-btn", text: "撤回" });
-    undoBtn.title = "撤销本次修改（也可用 Ctrl+Z）";
+    pill.createSpan({ cls: "aio-edit-undo-text", text: t("undo.applied") });
+    const undoBtn = pill.createEl("button", { cls: "aio-edit-undo-btn", text: t("undo.undo") });
+    undoBtn.title = t("undo.undoTitle");
     undoBtn.addEventListener("mousedown", (evt) => evt.preventDefault());
     undoBtn.addEventListener("click", () => {
       try {
@@ -887,7 +890,7 @@ export default class AIOrganizerPlugin extends Plugin {
   private restoreCurrentScrollPosition(showNotice = false): void {
     const file = this.app.workspace.getActiveFile();
     if (!(file instanceof TFile) || file.extension !== "md") {
-      if (showNotice) notify("请先打开 Markdown 笔记");
+      if (showNotice) notify(t("notify.needMarkdown"));
       return;
     }
     const persisted = this.settings.scrollRestore.positions?.[file.path];
@@ -895,7 +898,7 @@ export default class AIOrganizerPlugin extends Plugin {
       this.notePositions.set(file.path, persisted);
     }
     if (!this.notePositions.has(file.path)) {
-      if (showNotice) notify("该笔记暂无浏览位置记录");
+      if (showNotice) notify(t("notify.noPosition"));
       return;
     }
     const apply = () => this.restoreScrollFor(file, true);
@@ -903,7 +906,7 @@ export default class AIOrganizerPlugin extends Plugin {
     window.requestAnimationFrame(apply);
     window.setTimeout(apply, 350);
     if (showNotice) {
-      notify(restored ? "已恢复上次浏览位置" : "无法恢复上次浏览位置", {
+      notify(restored ? t("notify.restoredPosition") : t("notify.cannotRestore"), {
         type: restored ? "success" : "error",
       });
     }
@@ -924,7 +927,7 @@ export default class AIOrganizerPlugin extends Plugin {
         const applyWithNotice = () => {
           if (apply() && !notified) {
             notified = true;
-            notifySuccess("已恢复上次浏览位置");
+            notifySuccess(t("notify.restoredPosition"));
           }
         };
         window.requestAnimationFrame(applyWithNotice);
@@ -952,7 +955,7 @@ export default class AIOrganizerPlugin extends Plugin {
   openSettings(): void {
     const setting = (this.app as any).setting;
     if (!setting) {
-      notify("请在 Obsidian 设置 → 第三方插件中打开 AI Organizer 配置");
+      notify(t("notify.openSettings"));
       return;
     }
     setting.open();
@@ -961,28 +964,28 @@ export default class AIOrganizerPlugin extends Plugin {
 
   async formatNote(): Promise<void> {
     if (this.formattingInProgress) {
-      notify("排版中…");
+      notify(t("notify.formattingInProgress"));
       return;
     }
     const file = this.app.workspace.getActiveFile();
     if (!file || !(file instanceof TFile) || file.extension !== "md") {
-      notify("请先打开 Markdown 笔记");
+      notify(t("notify.needMarkdown"));
       return;
     }
     const mode = this.settings.formatting.mode;
     this.formattingInProgress = true;
-    const loadingNotice = notifyLoading("正在排版…");
+    const loadingNotice = notifyLoading(t("notify.formatting"));
 
     try {
-      loadingNotice.setMessage("正在排版（保护图片与附件引用）…");
+      loadingNotice.setMessage(t("notify.formatting"));
       const result = await this.formatting.formatActiveNote(mode);
       if (!result) return;
       const { file: resultFile, before, after } = result;
 
-      loadingNotice.setMessage("排版完成，打开预览中…");
+      loadingNotice.setMessage(t("notify.formattingPreview"));
       const apply = async () => {
         await this.app.vault.modify(resultFile, after);
-        notifySuccess(`已排版：${resultFile.basename}`);
+        notifySuccess(tpl("notify.formattingDone", { name: resultFile.basename }));
       };
 
       if (this.settings.formatting.previewBeforeApply) {
@@ -991,7 +994,7 @@ export default class AIOrganizerPlugin extends Plugin {
         await apply();
       }
     } catch (err: any) {
-      notifyError(`排版失败：${err?.message || err}`, 8000);
+      notifyError(tpl("notify.formattingFail", { msg: err?.message || err }), 8000);
     } finally {
       loadingNotice.hide();
       this.formattingInProgress = false;
@@ -1001,7 +1004,7 @@ export default class AIOrganizerPlugin extends Plugin {
   async organizeImages(): Promise<void> {
     const file = this.app.workspace.getActiveFile();
     if (!file || !(file instanceof TFile) || file.extension !== "md") {
-      notify("请先打开 Markdown 笔记");
+      notify(t("notify.needMarkdown"));
       return;
     }
     const defaultTarget = this.imageOrganizer.targetFolderFor(file);
@@ -1017,26 +1020,26 @@ export default class AIOrganizerPlugin extends Plugin {
   }
 
   async scanOrphans(): Promise<void> {
-    const loading = notifyLoading("正在扫描未引用附件…");
+    const loading = notifyLoading(t("notify.scanningOrphans"));
     const orphans = await this.imageOrganizer.findOrphans();
     loading.hide();
     if (orphans.length === 0) {
-      notifySuccess("未发现未引用的附件");
+      notifySuccess(t("notify.noOrphans"));
       return;
     }
     new OrphanModal(this.app, orphans, async (files) => {
       const moved = await this.imageOrganizer.moveOrphansToTrash(files);
-      notifySuccess(`已移动 ${moved} 个附件至「未引用附件」`);
+      notifySuccess(tpl("notify.movedOrphans", { n: moved }));
     }).open();
   }
 
   async generateMetadata(): Promise<void> {
     const file = this.app.workspace.getActiveFile();
     if (!file || !(file instanceof TFile) || file.extension !== "md") {
-      notify("请先打开 Markdown 笔记");
+      notify(t("notify.needMarkdown"));
       return;
     }
-    const loading = notifyLoading("正在生成元数据…");
+    const loading = notifyLoading(t("notify.generatingMetadata"));
     await this.metadataGenerator.applyToNote(file);
     loading.hide();
   }
@@ -1044,30 +1047,30 @@ export default class AIOrganizerPlugin extends Plugin {
   async organizeInbox(): Promise<void> {
     const notes = this.inboxOrganizer.listInboxNotes();
     if (notes.length === 0) {
-      notify(`收件箱「${this.settings.inbox.inboxFolder}」暂无笔记`);
+      notify(tpl("notify.inboxEmpty", { folder: this.settings.inbox.inboxFolder }));
       return;
     }
-    const loading = notifyLoading(`正在分析 ${notes.length} 篇收件箱笔记…`);
+    const loading = notifyLoading(tpl("notify.inboxAnalyzing", { n: notes.length }));
     try {
       const suggestions = await this.inboxOrganizer.suggestMoves(notes);
       loading.hide();
       new InboxConfirmModal(this.app, suggestions, async (moves) => {
         const { moved, kept } = await this.inboxOrganizer.executeMoves(moves);
-        notifySuccess(`整理完成：移动 ${moved} 篇，保留 ${kept} 篇`);
+        notifySuccess(tpl("notify.inboxDone", { moved, kept }));
       }).open();
     } catch (err: any) {
       loading.hide();
-      notifyError(`整理失败：${err?.message || err}`, 6000);
+      notifyError(tpl("notify.inboxFail", { msg: err?.message || err }), 6000);
     }
   }
 
   async suggestLinks(): Promise<void> {
     const file = this.app.workspace.getActiveFile();
     if (!file || !(file instanceof TFile) || file.extension !== "md") {
-      notify("请先打开 Markdown 笔记");
+      notify(t("notify.needMarkdown"));
       return;
     }
-    const loading = notifyLoading("正在分析相关笔记…");
+    const loading = notifyLoading(t("notify.analyzingLinks"));
     try {
       const suggestions = await this.linkSuggester.suggest(file);
       loading.hide();
@@ -1076,7 +1079,7 @@ export default class AIOrganizerPlugin extends Plugin {
       }).open();
     } catch (err: any) {
       loading.hide();
-      notifyError(`分析失败：${err?.message || err}`, 6000);
+      notifyError(tpl("notify.linksFail", { msg: err?.message || err }), 6000);
     }
   }
 
@@ -1091,17 +1094,17 @@ export default class AIOrganizerPlugin extends Plugin {
     op: "format" | "metadata" | "translate"
   ): Promise<void> {
     const total = files.length;
-    const loading = notifyLoading("批量处理中 0/" + total);
+    const loading = notifyLoading(tpl("notify.batchProgress", { done: 0, total }));
     const results = await this.batchProcessor.process(files, op, (done) => {
-      loading.setMessage(`批量处理中 ${done}/${total}`);
+      loading.setMessage(tpl("notify.batchProgress", { done, total }));
     });
     loading.hide();
     const failed = results.filter((r) => !r.ok);
     if (failed.length > 0) {
       const detail = failed.map((r) => `${r.file.name}: ${r.message}`).slice(0, 10).join("\n");
-      notifyError(`失败 ${failed.length} 篇：\n${detail}`, 10000);
+      notifyError(tpl("notify.batchFail", { n: failed.length, detail }), 10000);
     } else {
-      notifySuccess(`批量处理完成：${results.length} 篇`);
+      notifySuccess(tpl("notify.batchDone", { n: results.length }));
     }
   }
 
@@ -1147,9 +1150,9 @@ export default class AIOrganizerPlugin extends Plugin {
     const head = popup.createDiv({ cls: "aio-translation-head" });
     const title = head.createDiv({ cls: "aio-translation-title" });
     setIcon(title.createSpan({ cls: "aio-translation-title-icon" }), "languages");
-    title.createSpan({ text: loading ? "正在翻译" : "翻译结果" });
+    title.createSpan({ text: loading ? t("translation.loading") : t("translation.title") });
     if (!loading) {
-      const langSelect = title.createEl("select", { cls: "aio-translation-lang", attr: { title: "切换目标语言" } });
+      const langSelect = title.createEl("select", { cls: "aio-translation-lang", attr: { title: t("translation.switchLang") } });
       const languages = this.translationLanguages(targetLang);
       for (const lang of languages) {
         langSelect.createEl("option", { value: lang, text: lang });
@@ -1162,7 +1165,7 @@ export default class AIOrganizerPlugin extends Plugin {
     }
     const closeBtn = head.createEl("button", {
       cls: "aio-translation-icon-btn",
-      attr: { type: "button", title: "关闭", "aria-label": "关闭" },
+      attr: { type: "button", title: t("common.close"), "aria-label": t("common.close") },
     });
     closeBtn.setText("×");
     closeBtn.addEventListener("click", () => this.hideTranslationPopup());
@@ -1170,19 +1173,19 @@ export default class AIOrganizerPlugin extends Plugin {
     if (loading) {
       const loadingEl = popup.createDiv({ cls: "aio-translation-loading" });
       loadingEl.createSpan({ cls: "aio-spinner" });
-      loadingEl.createSpan({ text: `翻译为 ${targetLang}...` });
+      loadingEl.createSpan({ text: tpl("translation.translatingTo", { lang: targetLang }) });
       this.positionFloatingPanel(popup);
       return;
     }
 
-    popup.createDiv({ cls: "aio-translation-body", text: translated || "未返回翻译内容" });
+    popup.createDiv({ cls: "aio-translation-body", text: translated || t("translation.emptyResult") });
     const thoughtWrap = popup.createDiv({ cls: "aio-translation-thought" });
-    thoughtWrap.createDiv({ cls: "aio-translation-thought-label", text: "自己的想法（可选）" });
+    thoughtWrap.createDiv({ cls: "aio-translation-thought-label", text: t("translation.thoughtLabel") });
     const thoughtEl = thoughtWrap.createEl("textarea", {
       cls: "aio-translation-thought-input",
       attr: {
         rows: "3",
-        placeholder: "例：与上一节概念相关，需再查原文…",
+        placeholder: t("translation.thoughtPlaceholder"),
       },
     });
     const existingTranslation = snapshot
@@ -1198,7 +1201,7 @@ export default class AIOrganizerPlugin extends Plugin {
     const actions = popup.createDiv({ cls: "aio-translation-actions" });
     const replaceBtn = actions.createEl("button", {
       cls: "aio-translation-action is-primary",
-      text: "替换原文",
+      text: t("translation.replace"),
       attr: { type: "button" },
     });
     replaceBtn.disabled = !snapshot;
@@ -1210,17 +1213,17 @@ export default class AIOrganizerPlugin extends Plugin {
 
     const copyBtn = actions.createEl("button", {
       cls: "aio-translation-action",
-      text: "复制",
+      text: t("common.copy"),
       attr: { type: "button" },
     });
     copyBtn.addEventListener("click", async () => {
       await navigator.clipboard.writeText(translated);
-      notifySuccess("翻译内容已复制");
+      notifySuccess(t("note.translated"));
     });
 
     const saveBtn = actions.createEl("button", {
       cls: "aio-translation-action",
-      text: existingTranslation ? "更新便签" : "保存便签",
+      text: existingTranslation ? t("translation.updateNote") : t("translation.saveNote"),
       attr: { type: "button" },
     });
     saveBtn.disabled = !snapshot;
@@ -1260,9 +1263,9 @@ export default class AIOrganizerPlugin extends Plugin {
     const popup = this.ensureTranslationPopup();
     popup.empty();
     popup.addClass("is-visible");
-    popup.createDiv({ cls: "aio-translation-title", text: "翻译失败" });
+    popup.createDiv({ cls: "aio-translation-title", text: t("modal.translateFailed") });
     popup.createDiv({ cls: "aio-translation-error", text: message });
-    const closeBtn = popup.createEl("button", { cls: "aio-translation-action", text: "关闭" });
+    const closeBtn = popup.createEl("button", { cls: "aio-translation-action", text: t("common.close") });
     closeBtn.addEventListener("click", () => this.hideTranslationPopup());
     this.positionFloatingPanel(popup);
   }
@@ -1275,10 +1278,10 @@ export default class AIOrganizerPlugin extends Plugin {
     const head = popup.createDiv({ cls: "aio-translation-head" });
     const title = head.createDiv({ cls: "aio-translation-title" });
     setIcon(title.createSpan({ cls: "aio-translation-title-icon" }), "sticky-note");
-    title.createSpan({ text: "插入便签" });
+    title.createSpan({ text: t("note.insertTitle") });
     const closeBtn = head.createEl("button", {
       cls: "aio-translation-icon-btn",
-      attr: { type: "button", title: "关闭", "aria-label": "关闭" },
+      attr: { type: "button", title: t("common.close"), "aria-label": t("common.close") },
     });
     closeBtn.setText("×");
     closeBtn.addEventListener("click", () => this.hideTranslationPopup());
@@ -1292,21 +1295,21 @@ export default class AIOrganizerPlugin extends Plugin {
       const existing = popup.createDiv({ cls: "aio-annotation-existing" });
       existing.createDiv({
         cls: "aio-annotation-existing-title",
-        text: isEditing ? "正在修改该文本的便签" : "该文本已有翻译便签",
+        text: isEditing ? t("note.existingEdit") : t("note.existingTranslation"),
       });
       existing.createDiv({
         cls: "aio-annotation-existing-item",
-        text: "保存将更新原便签，不新增。",
+        text: t("note.existingHint"),
       });
     }
 
     const thoughtWrap = popup.createDiv({ cls: "aio-translation-thought" });
-    thoughtWrap.createDiv({ cls: "aio-translation-thought-label", text: "自己的想法" });
+    thoughtWrap.createDiv({ cls: "aio-translation-thought-label", text: t("note.thoughtLabel") });
     const thoughtEl = thoughtWrap.createEl("textarea", {
       cls: "aio-translation-thought-input",
       attr: {
         rows: "5",
-        placeholder: "输入批注、疑问或待办…",
+        placeholder: t("note.thoughtPlaceholder"),
       },
     });
     thoughtEl.value = this.combineThoughts(existingThoughts);
@@ -1314,7 +1317,7 @@ export default class AIOrganizerPlugin extends Plugin {
     const actions = popup.createDiv({ cls: "aio-translation-actions" });
     const insertBtn = actions.createEl("button", {
       cls: "aio-translation-action is-primary",
-      text: isEditing ? "保存修改" : "保存想法",
+      text: isEditing ? t("note.saveEdit") : t("note.saveThought"),
       attr: { type: "button" },
     });
     insertBtn.addEventListener("click", async () => {
@@ -1361,13 +1364,13 @@ export default class AIOrganizerPlugin extends Plugin {
       thought,
       targetLang,
     });
-    notifySuccess("翻译便签已保存");
+    notifySuccess(t("note.translationSaved"));
   }
 
   private async insertThoughtNote(thought: string, snapshot: AIOSelectionSnapshot): Promise<void> {
     const cleanedThought = thought.trim();
     if (!cleanedThought) {
-      notify("请输入想法内容");
+      notify(t("note.thoughtRequired"));
       return;
     }
     await this.saveAnnotation({
@@ -1375,7 +1378,7 @@ export default class AIOrganizerPlugin extends Plugin {
       type: "thought",
       thought: cleanedThought,
     });
-    notifySuccess("便签已保存");
+    notifySuccess(t("note.saved"));
   }
 
   private async saveAnnotation(opts: {
@@ -1476,8 +1479,8 @@ export default class AIOrganizerPlugin extends Plugin {
   private showAnnotationPill(snapshot: AIOSelectionSnapshot, type: "translation" | "thought"): void {
     const pill = document.body.createDiv({ cls: "aio-edit-undo aio-annotation-pill" });
     setIcon(pill.createSpan({ cls: "aio-edit-undo-icon" }), "sticky-note");
-    pill.createSpan({ cls: "aio-edit-undo-text", text: type === "translation" ? "翻译便签已保存" : "便签已保存" });
-    const viewBtn = pill.createEl("button", { cls: "aio-edit-undo-btn", text: "查看" });
+    pill.createSpan({ cls: "aio-edit-undo-text", text: type === "translation" ? t("note.translationSaved") : t("note.saved") });
+    const viewBtn = pill.createEl("button", { cls: "aio-edit-undo-btn", text: t("undo.view") });
     viewBtn.addEventListener("mousedown", (evt) => evt.preventDefault());
     viewBtn.addEventListener("click", () => {
       pill.remove();
@@ -1711,7 +1714,7 @@ export default class AIOrganizerPlugin extends Plugin {
     );
     if (annotations.length === 0) {
       this.hideTranslationPopup();
-      notify("该文本暂无便签");
+      notify(t("note.emptyThread"));
       return;
     }
 
@@ -1722,10 +1725,10 @@ export default class AIOrganizerPlugin extends Plugin {
     const head = popup.createDiv({ cls: "aio-translation-head" });
     const title = head.createDiv({ cls: "aio-translation-title" });
     setIcon(title.createSpan({ cls: "aio-translation-title-icon" }), "sticky-note");
-    title.createSpan({ text: "编辑便签" });
+    title.createSpan({ text: t("note.editTitle") });
     const closeBtn = head.createEl("button", {
       cls: "aio-translation-icon-btn",
-      attr: { type: "button", title: "关闭", "aria-label": "关闭" },
+      attr: { type: "button", title: t("common.close"), "aria-label": t("common.close") },
     });
     closeBtn.setText("×");
     closeBtn.addEventListener("click", () => this.hideTranslationPopup());
@@ -1734,7 +1737,7 @@ export default class AIOrganizerPlugin extends Plugin {
       const lostHint = popup.createDiv({ cls: "aio-annotation-existing" });
       lostHint.createDiv({
         cls: "aio-annotation-existing-title",
-        text: "⚠️ 原文已变，这条便签无法定位到正文（可在面板中删除）",
+        text: t("note.lostHint"),
       });
     }
 
@@ -1747,12 +1750,12 @@ export default class AIOrganizerPlugin extends Plugin {
       const resultMeta = resultHead.createDiv({ cls: "aio-annotation-meta" });
       resultMeta.createSpan({
         cls: "aio-annotation-kind",
-        text: translation.targetLang ? `翻译 · ${translation.targetLang}` : "翻译",
+        text: translation.targetLang ? `${t("note.kindTranslation")} · ${translation.targetLang}` : t("note.kindTranslation"),
       });
       resultMeta.createSpan({ cls: "aio-annotation-time", text: new Date(translation.updatedAt).toLocaleString() });
       const deleteTranslationBtn = resultHead.createEl("button", {
         cls: "aio-annotation-mini-btn is-danger",
-        attr: { type: "button", title: "删除翻译便签", "aria-label": "删除翻译便签" },
+        attr: { type: "button", title: t("note.deleteTranslation"), "aria-label": t("note.deleteTranslation") },
       });
       setIcon(deleteTranslationBtn.createSpan({ cls: "aio-annotation-mini-btn-icon" }), "trash-2");
       deleteTranslationBtn.addEventListener("click", async (evt) => {
@@ -1763,7 +1766,7 @@ export default class AIOrganizerPlugin extends Plugin {
     }
 
     const composer = popup.createDiv({ cls: "aio-annotation-composer" });
-    composer.createDiv({ cls: "aio-translation-thought-label", text: "自己的想法" });
+    composer.createDiv({ cls: "aio-translation-thought-label", text: t("note.thoughtLabel") });
     const existingThoughts = this.settings.annotations.filter(
       (item) => item.filePath === filePath && item.type === "thought" && item.quote === quote
     );
@@ -1771,7 +1774,7 @@ export default class AIOrganizerPlugin extends Plugin {
       cls: "aio-translation-thought-input",
       attr: {
         rows: "5",
-        placeholder: "输入或修改理解、疑问、关联线索…",
+        placeholder: t("note.editPlaceholder"),
       },
     });
     thoughtEl.value = this.combineThoughts(existingThoughts);
@@ -1779,28 +1782,28 @@ export default class AIOrganizerPlugin extends Plugin {
     if (existingThoughts.length > 0) {
       const deleteThoughtBtn = actions.createEl("button", {
         cls: "aio-translation-action is-danger",
-        text: "删除想法",
+        text: t("note.deleteThought"),
         attr: { type: "button" },
       });
       deleteThoughtBtn.addEventListener("click", () => {
-        new ConfirmModal(this.app, "确定删除这段文字的想法便签吗？", async () => {
+        new ConfirmModal(this.app, t("note.deleteConfirm"), async () => {
         for (const item of existingThoughts) {
           await this.deleteAnnotation(item.id, undefined, false, false);
         }
-        notifySuccess("已删除想法便签");
+        notifySuccess(t("note.thoughtDeleted"));
         this.showAnnotationThread(filePath, quote);
         }).open();
       });
     }
     const addBtn = actions.createEl("button", {
       cls: "aio-translation-action is-primary",
-      text: thoughtEl.value.trim() ? "保存修改" : "保存想法",
+      text: thoughtEl.value.trim() ? t("note.saveEdit") : t("note.saveThought"),
       attr: { type: "button" },
     });
     addBtn.addEventListener("click", async () => {
       const thought = thoughtEl.value.trim();
       if (!thought) {
-        notify("请输入想法内容");
+        notify(t("note.thoughtRequired"));
         return;
       }
       await this.saveAnnotation({
@@ -1818,7 +1821,7 @@ export default class AIOrganizerPlugin extends Plugin {
   openAnnotationPanel(): void {
     const file = this.app.workspace.getActiveFile();
     if (!(file instanceof TFile) || file.extension !== "md") {
-      notify("请先打开 Markdown 笔记");
+      notify(t("notify.needMarkdown"));
       return;
     }
     void this.pruneMissingAnnotations(file).then((changed) => {
@@ -1837,10 +1840,10 @@ export default class AIOrganizerPlugin extends Plugin {
     const head = popup.createDiv({ cls: "aio-translation-head" });
     const title = head.createDiv({ cls: "aio-translation-title" });
     setIcon(title.createSpan({ cls: "aio-translation-title-icon" }), "sticky-note");
-    title.createSpan({ text: "当前笔记便签" });
+    title.createSpan({ text: t("note.panelTitle") });
     const exportBtn = head.createEl("button", {
       cls: "aio-translation-icon-btn",
-      attr: { type: "button", title: "导出便签为笔记", "aria-label": "导出便签为笔记" },
+      attr: { type: "button", title: t("note.exportTitle"), "aria-label": t("note.exportTitle") },
     });
     setIcon(exportBtn.createSpan({ cls: "aio-translation-icon" }), "download");
     exportBtn.addEventListener("click", () => {
@@ -1848,15 +1851,15 @@ export default class AIOrganizerPlugin extends Plugin {
     });
     const closeBtn = head.createEl("button", {
       cls: "aio-translation-icon-btn",
-      attr: { type: "button", title: "关闭", "aria-label": "关闭" },
+      attr: { type: "button", title: t("common.close"), "aria-label": t("common.close") },
     });
     closeBtn.setText("×");
     closeBtn.addEventListener("click", () => this.hideTranslationPopup());
 
     if (annotations.length === 0) {
       const empty = popup.createDiv({ cls: "aio-annotation-empty" });
-      empty.createDiv({ cls: "aio-annotation-empty-title", text: "这篇笔记还没有便签" });
-      empty.createDiv({ cls: "aio-annotation-empty-desc", text: "在正文里选中文字后，点“便签”或“翻译”即可保存批注。" });
+      empty.createDiv({ cls: "aio-annotation-empty-title", text: t("note.empty") });
+      empty.createDiv({ cls: "aio-annotation-empty-desc", text: t("note.emptyDesc") });
       this.positionFloatingPanel(popup);
       return;
     }
@@ -1872,18 +1875,18 @@ export default class AIOrganizerPlugin extends Plugin {
       });
       row.setAttr("role", "button");
       row.setAttr("tabindex", "0");
-      row.setAttr("aria-label", "打开便签");
+      row.setAttr("aria-label", t("note.panelRowOpen"));
       const top = row.createDiv({ cls: "aio-annotation-panel-item-head" });
       const meta = top.createDiv({ cls: "aio-annotation-meta" });
-      meta.createSpan({ cls: "aio-annotation-kind", text: item.type === "translation" ? "翻译" : "想法" });
+      meta.createSpan({ cls: "aio-annotation-kind", text: item.type === "translation" ? t("note.kindTranslation") : t("note.kindThought") });
       if (item.anchorLost) {
-        meta.createSpan({ cls: "aio-annotation-kind is-lost", text: "位置已失效" });
+        meta.createSpan({ cls: "aio-annotation-kind is-lost", text: t("note.lostBadge") });
       }
       meta.createSpan({ cls: "aio-annotation-time", text: new Date(item.updatedAt).toLocaleString() });
       const rowActions = top.createDiv({ cls: "aio-annotation-row-actions" });
       const editBtn = rowActions.createEl("button", {
         cls: "aio-annotation-mini-btn",
-        attr: { type: "button", title: "编辑便签", "aria-label": "编辑便签" },
+        attr: { type: "button", title: t("note.panelRowEdit"), "aria-label": t("note.panelRowEdit") },
       });
       setIcon(editBtn.createSpan({ cls: "aio-annotation-mini-btn-icon" }), "edit-3");
       editBtn.addEventListener("click", (evt) => {
@@ -1892,7 +1895,7 @@ export default class AIOrganizerPlugin extends Plugin {
       });
       const deleteBtn = rowActions.createEl("button", {
         cls: "aio-annotation-mini-btn is-danger",
-        attr: { type: "button", title: "删除便签", "aria-label": "删除便签" },
+        attr: { type: "button", title: t("note.panelRowDelete"), "aria-label": t("note.panelRowDelete") },
       });
       setIcon(deleteBtn.createSpan({ cls: "aio-annotation-mini-btn-icon" }), "trash-2");
       deleteBtn.addEventListener("click", async (evt) => {
@@ -1901,7 +1904,7 @@ export default class AIOrganizerPlugin extends Plugin {
       });
       row.createDiv({
         cls: "aio-annotation-panel-body",
-        text: item.thought || item.translated || "打开后编辑便签内容",
+        text: item.thought || item.translated || t("note.panelRowBody"),
       });
       const openAction = () =>
         item.anchorLost
@@ -1923,7 +1926,7 @@ export default class AIOrganizerPlugin extends Plugin {
   jumpToAnnotation(item: AIOAnnotation): void {
     const file = this.app.vault.getAbstractFileByPath(item.filePath);
     if (!(file instanceof TFile)) {
-      notifyError("便签所属笔记不存在");
+      notifyError(t("note.fileMissing"));
       return;
     }
     const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -1949,7 +1952,7 @@ export default class AIOrganizerPlugin extends Plugin {
       if (partial) range = partial;
     }
     if (!range) {
-      notifyError("该文本在当前笔记中不存在");
+      notifyError(t("note.textMissing"));
       return;
     }
     const from = posFromOffset(doc, range.from);
@@ -1963,7 +1966,7 @@ export default class AIOrganizerPlugin extends Plugin {
   async exportAnnotationsToNote(): Promise<void> {
     const file = this.app.workspace.getActiveFile();
     if (!(file instanceof TFile) || file.extension !== "md") {
-      notify("请先打开 Markdown 笔记");
+      notify(t("notify.needMarkdown"));
       return;
     }
     await this.pruneMissingAnnotations(file);
@@ -1971,7 +1974,7 @@ export default class AIOrganizerPlugin extends Plugin {
       this.settings.annotations.filter((item) => item.filePath === file.path)
     ).sort((a, b) => b.updatedAt - a.updatedAt);
     if (annotations.length === 0) {
-      notify("该笔记暂无便签");
+      notify(t("note.empty"));
       return;
     }
 
@@ -2006,25 +2009,25 @@ export default class AIOrganizerPlugin extends Plugin {
     const folder = file.parent?.path ?? "";
     const fileName = `${folder ? folder + "/" : ""}${file.basename} 便签.md`;
     const newFile = await this.app.vault.create(fileName, lines.join("\n"));
-    notifySuccess(`已导出 ${annotations.length} 条便签`);
+    notifySuccess(tpl("note.exported", { n: annotations.length }));
     void this.app.workspace.getLeaf(false).openFile(newFile);
   }
 
   /** 便签面板摘要文本 */
   private panelSummaryText(annotations: AIOAnnotation[]): string {
     const lost = annotations.filter((item) => item.anchorLost).length;
-    const suffix = lost > 0 ? `（其中 ${lost} 条位置已失效，点开查看或删除）` : "";
-    return `${annotations.length} 条便签 · 点击卡片跳转原文 · 右侧可删除${suffix}`;
+    const suffix = lost > 0 ? tpl("note.summaryLost", { n: lost }) : "";
+    return `${tpl("note.summary", { n: annotations.length })}${suffix}`;
   }
 
   private async deleteAnnotation(id: string, after?: () => void, ask = true, notify = true): Promise<void> {
     const item = this.settings.annotations.find((annotation) => annotation.id === id);
     if (!item) {
-      notifyError("便签不存在");
+      notifyError(t("note.notFound"));
       return;
     }
     if (ask) {
-      new ConfirmModal(this.app, "确定删除这条便签吗？", () => {
+      new ConfirmModal(this.app, t("note.deleteConfirm2"), () => {
         void this.deleteAnnotation(id, after, false, notify);
       }).open();
       return;
@@ -2032,7 +2035,7 @@ export default class AIOrganizerPlugin extends Plugin {
     this.settings.annotations = this.settings.annotations.filter((annotation) => annotation.id !== id);
     await this.saveSettings();
     this.refreshAnnotationDecorations();
-    if (notify) notifySuccess("已删除便签");
+    if (notify) notifySuccess(t("note.deleted"));
     after?.();
   }
 

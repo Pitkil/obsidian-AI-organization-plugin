@@ -1,5 +1,7 @@
 import { App, PluginSettingTab, Setting, setIcon } from "obsidian";
 import { notify } from "../utils/notify";
+import { setUILang, t, tpl } from "../i18n";
+import type { UILang } from "../i18n";
 import type AIOrganizerPlugin from "../main";
 import type { CustomPromptTemplate, ModelKind, ModelProfile, ProviderId } from "../types";
 import { TemplateEditModal } from "./templateModal";
@@ -8,27 +10,12 @@ import { TemplateEditModal } from "./templateModal";
 // AI Organizer 设置页
 // ============================================================
 
-/** OpenAI 兼容接口的常用预设（一键填充 baseUrl / model） */
-const PRESETS: Record<string, { label: string; baseUrl: string; model: string }> = {
-  custom: { label: "自定义", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
-  openai: { label: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
-  deepseek: { label: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat" },
-  qwen: { label: "通义千问", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus" },
-  zhipu: { label: "智谱 GLM", baseUrl: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-flash" },
-  kimi: { label: "Kimi(Moonshot)", baseUrl: "https://api.moonshot.cn/v1", model: "moonshot-v1-8k" },
-  ollama: { label: "Ollama 本地", baseUrl: "http://localhost:11434/v1", model: "llama3" },
-};
-
+/** 解析换行/逗号分隔的模型或语言列表 */
 function parseModelList(value: string): string[] {
   return value
     .split(/[\n,]/)
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function ensureModelList(models: string[] | undefined, model: string): string[] {
-  const result = Array.from(new Set([...(models ?? []), model].map((item) => item.trim()).filter(Boolean)));
-  return result;
 }
 
 export class AIOrganizerSettingTab extends PluginSettingTab {
@@ -41,6 +28,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("aio-settings");
 
+    this.renderLanguage();
     this.renderProviders();
     this.renderFormatting();
     this.renderImageOrg();
@@ -51,6 +39,27 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
     this.renderTranslate();
     this.renderChat();
     this.renderScrollRestore();
+  }
+
+  /** 界面语言切换（位于设置页顶部） */
+  private renderLanguage(): void {
+    const plugin = this.plugin;
+    new Setting(this.containerEl)
+      .setName(t("settings.language"))
+      .setDesc(t("settings.languageDesc"))
+      .addDropdown((dd) => {
+        dd.addOption("zh", t("settings.languageZh"));
+        dd.addOption("en", t("settings.languageEn"));
+        dd.setValue(plugin.settings.uiLanguage);
+        dd.onChange(async (value) => {
+          const lang = value === "en" ? "en" : "zh";
+          plugin.settings.uiLanguage = lang as UILang;
+          await plugin.saveSettings();
+          setUILang(lang as UILang);
+          notify(lang === "en" ? "Language switched. Reload the plugin to refresh command names." : "已切换语言，重载插件后命令名生效。");
+          this.display();
+        });
+      });
   }
 
   private createSection(
@@ -73,221 +82,8 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
   // ---------- 模型提供商 ----------
   private renderProviders(): void {
-    const containerEl = this.createSection("模型配置", "先完成这里，后面的排版、翻译和归档才会可用。", "key-round", "primary");
-    const s = this.plugin.settings;
+    const containerEl = this.createSection(t("st.modelSection"), t("st.modelSectionDesc"), "key-round", "primary");
     this.renderModelProfiles(containerEl);
-    return;
-
-    new Setting(containerEl)
-      .setName("默认提供商")
-      .addDropdown((dd) =>
-        dd
-          .addOption("openaiCompatible", "OpenAI 兼容接口")
-          .addOption("anthropic", "Anthropic Claude")
-          .addOption("gemini", "Google Gemini")
-          .setValue(s.activeProvider)
-          .onChange(async (v) => {
-            s.activeProvider = v as any;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    // ---- OpenAI 兼容 ----
-    new Setting(containerEl).setName("OpenAI 兼容接口").setHeading().setDesc("支持 OpenAI / DeepSeek / 通义千问 / 智谱 GLM / Kimi / Ollama 等");
-
-    new Setting(containerEl)
-      .setName("启用")
-      .addToggle((t) => t.setValue(s.openaiCompatible.enabled).onChange(async (v) => {
-        s.openaiCompatible.enabled = v;
-        await this.plugin.saveSettings();
-      }));
-
-    new Setting(containerEl)
-      .setName("快速预设")
-      .setDesc("一键填充常用服务的 Base URL 与模型名")
-      .addDropdown((dd) => {
-        for (const key of Object.keys(PRESETS)) {
-          dd.addOption(key, PRESETS[key].label);
-        }
-        dd.setValue("custom");
-        dd.onChange(async (key) => {
-          const p = PRESETS[key];
-          s.openaiCompatible.baseUrl = p.baseUrl;
-          s.openaiCompatible.model = p.model;
-          s.openaiCompatible.models = ensureModelList(s.openaiCompatible.models, p.model);
-          await this.plugin.saveSettings();
-          this.display();
-        });
-      });
-
-    new Setting(containerEl)
-      .setName("Base URL")
-      .addText((t) =>
-        t.setPlaceholder("https://api.openai.com/v1").setValue(s.openaiCompatible.baseUrl).onChange(async (v) => {
-          s.openaiCompatible.baseUrl = v.trim();
-          await this.plugin.saveSettings();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName("API Key")
-      .setDesc("留空则仅支持无需鉴权的本地服务（如 Ollama）")
-      .addText((t) => {
-        t.inputEl.type = "password";
-        t.setPlaceholder("sk-…").setValue(s.openaiCompatible.apiKey).onChange(async (v) => {
-          s.openaiCompatible.apiKey = v.trim();
-          await this.plugin.saveSettings();
-        });
-      });
-
-    new Setting(containerEl)
-      .setName("模型")
-      .addText((t) =>
-        t.setPlaceholder("gpt-4o-mini").setValue(s.openaiCompatible.model).onChange(async (v) => {
-          s.openaiCompatible.model = v.trim();
-          s.openaiCompatible.models = ensureModelList(s.openaiCompatible.models, s.openaiCompatible.model);
-          await this.plugin.saveSettings();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName("模型列表")
-      .setDesc("可配置多个模型，聊天输入框下方可切换。支持逗号或换行分隔。")
-      .addTextArea((ta) => {
-        ta.setValue(s.openaiCompatible.models.join("\n")).onChange(async (v) => {
-          s.openaiCompatible.models = parseModelList(v);
-          await this.plugin.saveSettings();
-        });
-        ta.inputEl.rows = 3;
-        ta.inputEl.addClass("aio-textarea");
-      });
-
-    new Setting(containerEl)
-      .setName("温度")
-      .setDesc("0~2，越高越有创造性")
-      .addSlider((sl) =>
-        sl.setLimits(0, 2, 0.1).setValue(s.openaiCompatible.temperature).onChange(async (v) => {
-          s.openaiCompatible.temperature = v;
-          await this.plugin.saveSettings();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName("最大 Token")
-      .addText((t) =>
-        t.setValue(String(s.openaiCompatible.maxTokens)).onChange(async (v) => {
-          s.openaiCompatible.maxTokens = Math.max(256, parseInt(v) || 4096);
-          await this.plugin.saveSettings();
-        })
-      );
-
-    // ---- Anthropic ----
-    new Setting(containerEl).setName("Anthropic Claude").setHeading();
-    new Setting(containerEl)
-      .setName("启用")
-      .addToggle((t) => t.setValue(s.anthropic.enabled).onChange(async (v) => {
-        s.anthropic.enabled = v;
-        await this.plugin.saveSettings();
-      }));
-    new Setting(containerEl)
-      .setName("API Key")
-      .addText((t) => {
-        t.inputEl.type = "password";
-        t.setPlaceholder("sk-ant-…").setValue(s.anthropic.apiKey).onChange(async (v) => {
-          s.anthropic.apiKey = v.trim();
-          await this.plugin.saveSettings();
-        });
-      });
-    new Setting(containerEl)
-      .setName("模型")
-      .addText((t) =>
-        t.setPlaceholder("claude-3-5-sonnet-latest").setValue(s.anthropic.model).onChange(async (v) => {
-          s.anthropic.model = v.trim();
-          s.anthropic.models = ensureModelList(s.anthropic.models, s.anthropic.model);
-          await this.plugin.saveSettings();
-        })
-      );
-    new Setting(containerEl)
-      .setName("模型列表")
-      .setDesc("聊天输入框下方可切换。支持逗号或换行分隔。")
-      .addTextArea((ta) => {
-        ta.setValue(s.anthropic.models.join("\n")).onChange(async (v) => {
-          s.anthropic.models = parseModelList(v);
-          await this.plugin.saveSettings();
-        });
-        ta.inputEl.rows = 3;
-        ta.inputEl.addClass("aio-textarea");
-      });
-    new Setting(containerEl)
-      .setName("温度")
-      .addSlider((sl) =>
-        sl.setLimits(0, 2, 0.1).setValue(s.anthropic.temperature).onChange(async (v) => {
-          s.anthropic.temperature = v;
-          await this.plugin.saveSettings();
-        })
-      );
-    new Setting(containerEl)
-      .setName("最大 Token")
-      .addText((t) =>
-        t.setValue(String(s.anthropic.maxTokens)).onChange(async (v) => {
-          s.anthropic.maxTokens = Math.max(256, parseInt(v) || 4096);
-          await this.plugin.saveSettings();
-        })
-      );
-
-    // ---- Gemini ----
-    new Setting(containerEl).setName("Google Gemini").setHeading();
-    new Setting(containerEl)
-      .setName("启用")
-      .addToggle((t) => t.setValue(s.gemini.enabled).onChange(async (v) => {
-        s.gemini.enabled = v;
-        await this.plugin.saveSettings();
-      }));
-    new Setting(containerEl)
-      .setName("API Key")
-      .addText((t) => {
-        t.inputEl.type = "password";
-        t.setPlaceholder("AIza…").setValue(s.gemini.apiKey).onChange(async (v) => {
-          s.gemini.apiKey = v.trim();
-          await this.plugin.saveSettings();
-        });
-      });
-    new Setting(containerEl)
-      .setName("模型")
-      .addText((t) =>
-        t.setPlaceholder("gemini-1.5-pro").setValue(s.gemini.model).onChange(async (v) => {
-          s.gemini.model = v.trim();
-          s.gemini.models = ensureModelList(s.gemini.models, s.gemini.model);
-          await this.plugin.saveSettings();
-        })
-      );
-    new Setting(containerEl)
-      .setName("模型列表")
-      .setDesc("聊天输入框下方可切换。支持逗号或换行分隔。")
-      .addTextArea((ta) => {
-        ta.setValue(s.gemini.models.join("\n")).onChange(async (v) => {
-          s.gemini.models = parseModelList(v);
-          await this.plugin.saveSettings();
-        });
-        ta.inputEl.rows = 3;
-        ta.inputEl.addClass("aio-textarea");
-      });
-    new Setting(containerEl)
-      .setName("温度")
-      .addSlider((sl) =>
-        sl.setLimits(0, 2, 0.1).setValue(s.gemini.temperature).onChange(async (v) => {
-          s.gemini.temperature = v;
-          await this.plugin.saveSettings();
-        })
-      );
-    new Setting(containerEl)
-      .setName("最大 Token")
-      .addText((t) =>
-        t.setValue(String(s.gemini.maxTokens)).onChange(async (v) => {
-          s.gemini.maxTokens = Math.max(256, parseInt(v) || 4096);
-          await this.plugin.saveSettings();
-        })
-      );
   }
 
   // ---------- 排版 ----------
@@ -298,12 +94,12 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
     const bar = containerEl.createDiv({ cls: "aio-model-config-bar" });
     const copy = bar.createDiv({ cls: "aio-model-config-copy" });
-    copy.createDiv({ cls: "aio-model-config-title", text: "模型列表" });
+    copy.createDiv({ cls: "aio-model-config-title", text: t("st.profileListTitle") });
     copy.createDiv({
       cls: "aio-model-config-desc",
-      text: "每个模型单独保存提供商、URL、Key 和模型 ID；聊天、翻译、排版等功能会使用当前选中的模型。",
+      text: t("st.profileListDesc"),
     });
-    const addBtn = bar.createEl("button", { cls: "aio-model-add-btn", text: "添加模型" });
+    const addBtn = bar.createEl("button", { cls: "aio-model-add-btn", text: t("st.addModel") });
     addBtn.addEventListener("click", async () => {
       s.modelProfiles.push(this.createEmptyProfile("openaiCompatible"));
       await this.plugin.saveSettings();
@@ -312,13 +108,13 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
     const localVision = containerEl.createDiv({ cls: "aio-local-vision-bar" });
     const localCopy = localVision.createDiv({ cls: "aio-local-vision-copy" });
-    localCopy.createDiv({ cls: "aio-local-vision-title", text: "本地看图模型" });
+    localCopy.createDiv({ cls: "aio-local-vision-title", text: t("st.localVisionTitle") });
     localCopy.createDiv({
       cls: "aio-local-vision-desc",
-      text: "不打包模型文件；连接你本机的 Ollama / LM Studio。轻量默认用 moondream，可在卡片里改模型 ID。",
+      text: t("st.localVisionDesc"),
     });
     const localActions = localVision.createDiv({ cls: "aio-local-vision-actions" });
-    const ollamaVisionBtn = localActions.createEl("button", { cls: "aio-model-profile-btn", text: "添加 Ollama 视觉" });
+    const ollamaVisionBtn = localActions.createEl("button", { cls: "aio-model-profile-btn", text: t("st.addOllamaVision") });
     ollamaVisionBtn.addEventListener("click", async () => {
       const profile = this.createLocalVisionProfile("ollama");
       s.modelProfiles.push(profile);
@@ -326,7 +122,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
       await this.plugin.saveSettings();
       this.display();
     });
-    const lmStudioVisionBtn = localActions.createEl("button", { cls: "aio-model-profile-btn", text: "添加 LM Studio 视觉" });
+    const lmStudioVisionBtn = localActions.createEl("button", { cls: "aio-model-profile-btn", text: t("st.addLmStudioVision") });
     lmStudioVisionBtn.addEventListener("click", async () => {
       const profile = this.createLocalVisionProfile("lmstudio");
       s.modelProfiles.push(profile);
@@ -336,11 +132,11 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
     });
 
     new Setting(containerEl)
-      .setName("当前文本模型")
-      .setDesc(textProfiles.length > 0 ? "对话、排版、翻译和元数据默认使用这个模型。" : "还没有可用文本模型。")
+      .setName(t("st.currentTextModel"))
+      .setDesc(textProfiles.length > 0 ? t("st.currentTextModelDesc") : t("st.noTextModelYet"))
       .addDropdown((dd) => {
         if (textProfiles.length === 0) {
-          dd.addOption("", "未配置文本模型");
+          dd.addOption("", t("st.noTextModelConfigured"));
           dd.setValue("");
           return;
         }
@@ -363,10 +159,10 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("当前视觉模型")
-      .setDesc("多个视觉模型时，只使用这里选中的一个；不使用视觉模型时走内置 OCR 兜底。")
+      .setName(t("st.currentVisionModel"))
+      .setDesc(t("st.currentVisionModelDesc"))
       .addDropdown((dd) => {
-        dd.addOption("", "不使用视觉模型");
+        dd.addOption("", t("st.noVisionModel"));
         for (const profile of visionProfiles) {
           dd.addOption(profile.id, this.profileDisplayName(profile));
         }
@@ -380,7 +176,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
     const list = containerEl.createDiv({ cls: "aio-model-profile-list" });
     if (s.modelProfiles.length === 0) {
-      list.createDiv({ cls: "aio-model-empty", text: "还没有模型。点击“添加模型”开始配置。" });
+      list.createDiv({ cls: "aio-model-empty", text: t("st.noModelsYet") });
       return;
     }
 
@@ -401,10 +197,10 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
     const head = card.createDiv({ cls: "aio-model-profile-head" });
     const title = head.createDiv({ cls: "aio-model-profile-title" });
-    title.createDiv({ cls: "aio-model-profile-name", text: profile.name || profile.model || "未命名模型" });
+    title.createDiv({ cls: "aio-model-profile-name", text: profile.name || profile.model || t("st.unnamedModel") });
     title.createDiv({
       cls: "aio-model-profile-meta",
-      text: `${this.providerName(profile.providerId)} · ${profile.model || "未填写模型 ID"}`,
+      text: `${this.providerName(profile.providerId)} · ${profile.model || t("st.noModelId")}`,
     });
     const actions = head.createDiv({ cls: "aio-model-profile-actions" });
     const activeBtn = actions.createEl("button", {
@@ -413,7 +209,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
     });
     activeBtn.addEventListener("click", async () => {
       if (!this.profileReady(profile)) {
-        notify("请填写完整的 URL、API Key 和模型 ID");
+        notify(t("notify.fillProfile"));
         return;
       }
       if ((profile.kind ?? "text") === "vision") {
@@ -426,7 +222,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
       await this.plugin.saveSettings();
       this.display();
     });
-    const deleteBtn = actions.createEl("button", { cls: "aio-model-profile-btn is-danger", text: "删除" });
+    const deleteBtn = actions.createEl("button", { cls: "aio-model-profile-btn is-danger", text: t("common.delete") });
     deleteBtn.addEventListener("click", async () => {
       this.plugin.settings.modelProfiles = this.plugin.settings.modelProfiles.filter((item) => item.id !== profile.id);
       if (this.plugin.settings.activeModelProfileId === profile.id) {
@@ -446,7 +242,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
     });
 
     new Setting(card)
-      .setName("启用")
+      .setName(t("st.enabled"))
       .addToggle((toggle) =>
         toggle.setValue(profile.enabled).onChange(async (value) => {
           profile.enabled = value;
@@ -456,21 +252,21 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
       );
 
     new Setting(card)
-      .setName("显示名称")
+      .setName(t("st.displayName"))
       .addText((text) =>
-        text.setPlaceholder("例如：DeepSeek 写作").setValue(profile.name).onChange(async (value) => {
+        text.setPlaceholder(t("st.displayNamePlaceholder")).setValue(profile.name).onChange(async (value) => {
           profile.name = value.trim();
           await this.plugin.saveSettings();
         })
       );
 
     new Setting(card)
-      .setName("用途")
-      .setDesc("文本模型用于对话和文档处理；视觉模型只在图片上下文时作为辅助分析。")
+      .setName(t("st.kind"))
+      .setDesc(t("st.kindDesc"))
       .addDropdown((dd) =>
         dd
-          .addOption("text", "文本模型")
-          .addOption("vision", "视觉模型")
+          .addOption("text", t("st.kindText"))
+          .addOption("vision", t("st.kindVision"))
           .setValue(profile.kind ?? "text")
           .onChange(async (value) => {
             profile.kind = value as ModelKind;
@@ -487,10 +283,10 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
       );
 
     new Setting(card)
-      .setName("提供商")
+      .setName(t("st.provider"))
       .addDropdown((dd) =>
         dd
-          .addOption("openaiCompatible", "OpenAI 兼容接口")
+          .addOption("openaiCompatible", t("st.providerOpenaiCompat"))
           .addOption("anthropic", "Anthropic Claude")
           .addOption("gemini", "Google Gemini")
           .setValue(profile.providerId)
@@ -504,7 +300,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
     new Setting(card)
       .setName("Base URL")
-      .setDesc(profile.providerId === "openaiCompatible" ? "不同兼容服务填自己的接口地址，例如 DeepSeek、通义、Ollama。" : "官方服务可留空，使用默认接口；代理或中转服务可填写自定义地址。")
+      .setDesc(profile.providerId === "openaiCompatible" ? t("st.baseUrlDescCompat") : t("st.baseUrlDescOfficial"))
       .addText((text) =>
         text.setPlaceholder(this.defaultBaseUrl(profile.providerId)).setValue(profile.baseUrl ?? "").onChange(async (value) => {
           profile.baseUrl = value.trim();
@@ -523,7 +319,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
       });
 
     new Setting(card)
-      .setName("模型 ID")
+      .setName(t("st.modelId"))
       .addText((text) =>
         text.setPlaceholder(this.modelPlaceholder(profile.providerId, profile.kind ?? "text")).setValue(profile.model).onChange(async (value) => {
           profile.model = value.trim();
@@ -533,7 +329,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
       );
 
     new Setting(card)
-      .setName("温度")
+      .setName(t("st.temperature"))
       .addSlider((slider) =>
         slider.setLimits(0, 2, 0.1).setValue(profile.temperature ?? 0.7).onChange(async (value) => {
           profile.temperature = value;
@@ -542,7 +338,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
       );
 
     new Setting(card)
-      .setName("最大 Token")
+      .setName(t("st.maxTokens"))
       .addText((text) =>
         text.setValue(String(profile.maxTokens ?? 4096)).onChange(async (value) => {
           profile.maxTokens = Math.max(256, parseInt(value) || 4096);
@@ -551,8 +347,8 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
       );
 
     new Setting(card)
-      .setName("上下文窗口")
-      .setDesc("用于对话输入框右上角圆圈估算上下文占用；按实际模型填，例如 8192、32768、128000。")
+      .setName(t("st.contextWindow"))
+      .setDesc(t("st.contextWindowDesc"))
       .addText((text) =>
         text.setValue(String(profile.contextWindowTokens ?? 32000)).onChange(async (value) => {
           profile.contextWindowTokens = Math.max(1024, parseInt(value) || 32000);
@@ -583,7 +379,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
       id: `local-vision-${kind}-${Date.now()}`,
       providerId: "openaiCompatible",
       kind: "vision",
-      name: isOllama ? "Ollama 本地看图" : "LM Studio 本地看图",
+      name: isOllama ? t("st.ollamaLocalVision") : t("st.lmStudioLocalVision"),
       enabled: true,
       baseUrl: isOllama ? "http://localhost:11434/v1" : "http://localhost:1234/v1",
       apiKey: "",
@@ -612,7 +408,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
   }
 
   private providerName(providerId: ProviderId): string {
-    if (providerId === "openaiCompatible") return "OpenAI 兼容";
+    if (providerId === "openaiCompatible") return t("st.providerNameCompat");
     if (providerId === "anthropic") return "Claude";
     return "Gemini";
   }
@@ -642,25 +438,25 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
   private activeProfileButtonText(profile: ModelProfile): string {
     if ((profile.kind ?? "text") === "vision") {
-      return profile.id === this.plugin.settings.activeVisionModelProfileId ? "当前视觉" : "设为视觉";
+      return profile.id === this.plugin.settings.activeVisionModelProfileId ? t("st.currentVisionBtn") : t("st.setVisionBtn");
     }
-    return profile.id === this.plugin.settings.activeTextModelProfileId ? "当前文本" : "设为文本";
+    return profile.id === this.plugin.settings.activeTextModelProfileId ? t("st.currentTextBtn") : t("st.setTextBtn");
   }
 
   private renderFormatting(): void {
-    const containerEl = this.createSection("排版", "统一 Markdown 结构、标点、空行和自定义排版模板。", "pilcrow");
+    const containerEl = this.createSection(t("st.formatSection"), t("st.formatSectionDesc"), "pilcrow");
     const s = this.plugin.settings;
 
     // 模式下拉框：内置 + 自定义模板
     new Setting(containerEl)
-      .setName("默认排版模式")
+      .setName(t("st.defaultFormatMode"))
       .addDropdown((dd) => {
-        dd.addOption("full", "全面排版")
-          .addOption("markdown", "Markdown 语法规范")
-          .addOption("structure", "标题/结构优化")
-          .addOption("spacing", "中英混排/标点");
+        dd.addOption("full", t("st.formatModeFull"))
+          .addOption("markdown", t("st.formatModeMarkdown"))
+          .addOption("structure", t("st.formatModeStructure"))
+          .addOption("spacing", t("st.formatModeSpacing"));
         for (const t of s.formatting.customTemplates) {
-          dd.addOption(t.name, `自定义：${t.name}`);
+          dd.addOption(t.name, tpl("st.customPrefix", { name: t.name }));
         }
         const current = s.formatting.mode;
         const valid =
@@ -673,8 +469,8 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         });
       });
     new Setting(containerEl)
-      .setName("排版前预览")
-      .setDesc("应用前弹出预览（含差异视图），防止破坏原文")
+      .setName(t("st.previewBeforeApply"))
+      .setDesc(t("st.previewBeforeApplyDesc"))
       .addToggle((t) =>
         t.setValue(s.formatting.previewBeforeApply).onChange(async (v) => {
           s.formatting.previewBeforeApply = v;
@@ -684,13 +480,13 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
     // ---- 自定义模板管理 ----
     new Setting(containerEl)
-      .setName("自定义排版模板")
-      .setDesc("自定义模板会出现在「默认排版模式」下拉框中")
+      .setName(t("st.customTemplates"))
+      .setDesc(t("st.customTemplatesDesc"))
       .addButton((btn) =>
-        btn.setButtonText("＋ 新建模板").setCta().onClick(() => {
+        btn.setButtonText(t("st.newTemplate")).setCta().onClick(() => {
           new TemplateEditModal(this.app, null, async (template) => {
-            if (s.formatting.customTemplates.some((t) => t.name === template.name)) {
-              notify("模板名称已存在，请更换名称");
+            if (s.formatting.customTemplates.some((x) => x.name === template.name)) {
+              notify(t("notify.templateNameExists"));
               return;
             }
             s.formatting.customTemplates.push(template);
@@ -700,14 +496,14 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
 
-    for (const t of s.formatting.customTemplates) {
+    for (const tmpl of s.formatting.customTemplates) {
       const row = new Setting(containerEl)
-        .setName(`自定义：${t.name}`)
-        .setDesc(this.previewPrompt(t.prompt));
+        .setName(tpl("st.customPrefix", { name: tmpl.name }))
+        .setDesc(this.previewPrompt(tmpl.prompt));
       row.addButton((btn) =>
-        btn.setButtonText("编辑").onClick(() => {
-          new TemplateEditModal(this.app, t, async (updated) => {
-            const idx = s.formatting.customTemplates.findIndex((x) => x.name === t.name);
+        btn.setButtonText(t("st.edit")).onClick(() => {
+          new TemplateEditModal(this.app, tmpl, async (updated) => {
+            const idx = s.formatting.customTemplates.findIndex((x) => x.name === tmpl.name);
             if (idx >= 0) s.formatting.customTemplates[idx] = updated;
             await this.plugin.saveSettings();
             this.display();
@@ -715,11 +511,11 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
       row.addButton((btn) =>
-        btn.setButtonText("删除").onClick(async () => {
+        btn.setButtonText(t("common.delete")).onClick(async () => {
           s.formatting.customTemplates = s.formatting.customTemplates.filter(
-            (x) => x.name !== t.name
+            (x) => x.name !== tmpl.name
           );
-          if (s.formatting.mode === t.name) s.formatting.mode = "full";
+          if (s.formatting.mode === tmpl.name) s.formatting.mode = "full";
           await this.plugin.saveSettings();
           this.display();
         })
@@ -734,12 +530,12 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
   // ---------- 图片整理 ----------
   private renderImageOrg(): void {
-    const containerEl = this.createSection("图片与附件", "把笔记图片移动到固定目录，按笔记整理并处理未引用附件。", "image");
+    const containerEl = this.createSection(t("st.imageSection"), t("st.imageSectionDesc"), "image");
     const s = this.plugin.settings;
 
     new Setting(containerEl)
-      .setName("附件根目录")
-      .setDesc("图片将移动到此目录（相对库根）")
+      .setName(t("st.attachmentRoot"))
+      .setDesc(t("st.attachmentRootDesc"))
       .addText((t) =>
         t.setPlaceholder("attachments").setValue(s.imageOrg.attachmentRoot).onChange(async (v) => {
           s.imageOrg.attachmentRoot = v.trim();
@@ -747,8 +543,8 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("按笔记分子文件夹")
-      .setDesc("移动到「附件根/笔记名/」而不是平铺在根目录")
+      .setName(t("st.subfolderPerNote"))
+      .setDesc(t("st.subfolderPerNoteDesc"))
       .addToggle((t) =>
         t.setValue(s.imageOrg.subfolderPerNote).onChange(async (v) => {
           s.imageOrg.subfolderPerNote = v;
@@ -756,8 +552,8 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("自动重命名")
-      .setDesc("重命名为「笔记名-序号.ext」，避免重名冲突")
+      .setName(t("st.autoRename"))
+      .setDesc(t("st.autoRenameDesc"))
       .addToggle((t) =>
         t.setValue(s.imageOrg.renameImages).onChange(async (v) => {
           s.imageOrg.renameImages = v;
@@ -765,8 +561,8 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("检查未引用附件")
-      .setDesc("整理时同时扫描未被任何笔记引用的图片")
+      .setName(t("st.scanOrphans"))
+      .setDesc(t("st.scanOrphansDesc"))
       .addToggle((t) =>
         t.setValue(s.imageOrg.checkOrphans).onChange(async (v) => {
           s.imageOrg.checkOrphans = v;
@@ -774,8 +570,8 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("视觉上下文图片上限")
-      .setDesc("当前笔记或选中文本含图片时，最多发送多少张给视觉模型。默认 20。")
+      .setName(t("st.visionMaxImages"))
+      .setDesc(t("st.visionMaxImagesDesc"))
       .addText((t) =>
         t.setValue(String(s.imageOrg.visionMaxImages ?? 20)).onChange(async (v) => {
           s.imageOrg.visionMaxImages = Math.min(200, Math.max(1, parseInt(v) || 20));
@@ -783,8 +579,8 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("视觉单图大小上限（MB）")
-      .setDesc("超过这个大小的图片不会发送给视觉模型，只把文件名作为文本上下文说明。默认 5MB。")
+      .setName(t("st.visionMaxSize"))
+      .setDesc(t("st.visionMaxSizeDesc"))
       .addText((t) =>
         t.setValue(String(s.imageOrg.visionMaxImageSizeMB ?? 5)).onChange(async (v) => {
           s.imageOrg.visionMaxImageSizeMB = Math.min(50, Math.max(1, parseInt(v) || 5));
@@ -792,8 +588,8 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("内置 OCR 兜底")
-      .setDesc("视觉模型未配置或调用失败时，插件内置 OCR 会先读图中文字，再交给文本模型理解。")
+      .setName(t("st.ocrFallback"))
+      .setDesc(t("st.ocrFallbackDesc"))
       .addToggle((t) =>
         t.setValue(s.imageOrg.ocrFallbackEnabled !== false).onChange(async (v) => {
           s.imageOrg.ocrFallbackEnabled = v;
@@ -801,8 +597,8 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("OCR 语言")
-      .setDesc("内置 OCR 使用的语言包。中文+英文默认 chi_sim+eng；英文可用 eng；繁体可用 chi_tra+eng。")
+      .setName(t("st.ocrLang"))
+      .setDesc(t("st.ocrLangDesc"))
       .addText((t) =>
         t.setPlaceholder("chi_sim+eng").setValue(s.imageOrg.ocrLanguages ?? "chi_sim+eng").onChange(async (v) => {
           s.imageOrg.ocrLanguages = v.trim() || "chi_sim+eng";
@@ -814,11 +610,11 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
   // ---------- 元数据 ----------
 
   private renderMetadata(): void {
-    const containerEl = this.createSection("元数据", "生成标签、摘要和别名，写入笔记 frontmatter。", "tags");
+    const containerEl = this.createSection(t("st.metadataSection"), t("st.metadataSectionDesc"), "tags");
     const s = this.plugin.settings;
 
     new Setting(containerEl)
-      .setName("生成标签")
+      .setName(t("st.genTags"))
       .addToggle((t) =>
         t.setValue(s.metadata.generateTags).onChange(async (v) => {
           s.metadata.generateTags = v;
@@ -826,7 +622,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("生成摘要")
+      .setName(t("st.genSummary"))
       .addToggle((t) =>
         t.setValue(s.metadata.generateSummary).onChange(async (v) => {
           s.metadata.generateSummary = v;
@@ -834,7 +630,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("生成别名")
+      .setName(t("st.genAliases"))
       .addToggle((t) =>
         t.setValue(s.metadata.generateAliases).onChange(async (v) => {
           s.metadata.generateAliases = v;
@@ -842,15 +638,15 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("语言")
-      .addText((t) =>
-        t.setPlaceholder("中文").setValue(s.metadata.language).onChange(async (v) => {
-          s.metadata.language = v.trim() || "中文";
+      .setName(t("st.metadataLang"))
+      .addText((tc) =>
+        tc.setPlaceholder(t("st.metadataLangPlaceholder")).setValue(s.metadata.language).onChange(async (v) => {
+          s.metadata.language = v.trim() || t("st.metadataLangPlaceholder");
           await this.plugin.saveSettings();
         })
       );
     new Setting(containerEl)
-      .setName("标签数量上限")
+      .setName(t("st.maxTags"))
       .addText((t) =>
         t.setValue(String(s.metadata.maxTags)).onChange(async (v) => {
           s.metadata.maxTags = Math.min(20, Math.max(1, parseInt(v) || 10));
@@ -861,12 +657,12 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
   // ---------- 收件箱 ----------
   private renderInbox(): void {
-    const containerEl = this.createSection("收件箱", "分析 Inbox 中的笔记，并建议移动到更合适的目录。", "inbox");
+    const containerEl = this.createSection(t("st.inboxSection"), t("st.inboxSectionDesc"), "inbox");
     const s = this.plugin.settings;
 
     new Setting(containerEl)
-      .setName("收件箱文件夹")
-      .setDesc("此目录下的笔记将被一键分类")
+      .setName(t("st.inboxFolder"))
+      .setDesc(t("st.inboxFolderDesc"))
       .addText((t) =>
         t.setPlaceholder("Inbox").setValue(s.inbox.inboxFolder).onChange(async (v) => {
           s.inbox.inboxFolder = v.trim();
@@ -874,8 +670,8 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("允许创建新文件夹")
-      .setDesc("没有合适目录时，AI 可建议新建")
+      .setName(t("st.allowCreateFolders"))
+      .setDesc(t("st.allowCreateFoldersDesc"))
       .addToggle((t) =>
         t.setValue(s.inbox.allowCreateFolder).onChange(async (v) => {
           s.inbox.allowCreateFolder = v;
@@ -886,11 +682,11 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
   // ---------- 双链 ----------
   private renderLinks(): void {
-    const containerEl = this.createSection("双链建议", "基于当前笔记内容推荐相关笔记。", "link-2");
+    const containerEl = this.createSection(t("st.linksSection"), t("st.linksSectionDesc"), "link-2");
     const s = this.plugin.settings;
 
     new Setting(containerEl)
-      .setName("建议数量上限")
+      .setName(t("st.maxSuggestions"))
       .addText((t) =>
         t.setValue(String(s.links.maxSuggestions)).onChange(async (v) => {
           s.links.maxSuggestions = Math.min(15, Math.max(1, parseInt(v) || 5));
@@ -898,8 +694,8 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("候选笔记上限")
-      .setDesc("参与推荐的笔记数量，过大可能超出模型上下文")
+      .setName(t("st.candidateLimit"))
+      .setDesc(t("st.candidateLimitDesc"))
       .addText((t) =>
         t.setValue(String(s.links.candidateLimit)).onChange(async (v) => {
           s.links.candidateLimit = Math.min(2000, Math.max(10, parseInt(v) || 300));
@@ -910,12 +706,12 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
   // ---------- 批量 ----------
   private renderBatch(): void {
-    const containerEl = this.createSection("批量处理", "对多篇笔记连续执行排版、元数据或翻译任务。", "list-checks");
+    const containerEl = this.createSection(t("st.batchSection"), t("st.batchSectionDesc"), "list-checks");
     const s = this.plugin.settings;
 
     new Setting(containerEl)
-      .setName("每篇间隔（毫秒）")
-      .setDesc("避免请求过快触发限流")
+      .setName(t("st.batchDelay"))
+      .setDesc(t("st.batchDelayDesc"))
       .addText((t) =>
         t.setValue(String(s.batch.delayMs)).onChange(async (v) => {
           s.batch.delayMs = Math.max(0, parseInt(v) || 0);
@@ -926,15 +722,15 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
   // ---------- 翻译 ----------
   private renderTranslate(): void {
-    const containerEl = this.createSection("翻译", "设置选中文本翻译的默认语言与专用小模型。", "languages");
+    const containerEl = this.createSection(t("st.translateSection"), t("st.translateSectionDesc"), "languages");
     const s = this.plugin.settings;
     const textProfiles = this.plugin.chatService.getConfiguredProfiles("text");
 
     new Setting(containerEl)
-      .setName("翻译默认模型")
-      .setDesc("建议选择速度快、价格低的小文本模型；不选则回退到当前对话文本模型。")
+      .setName(t("st.translateDefaultModel"))
+      .setDesc(t("st.translateDefaultModelDesc"))
       .addDropdown((dd) => {
-        dd.addOption("", "自动：当前文本模型");
+        dd.addOption("", t("st.autoCurrentModel"));
         for (const profile of textProfiles) {
           dd.addOption(profile.id, this.profileDisplayName(profile));
         }
@@ -946,17 +742,17 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("默认目标语言")
-      .addText((t) =>
-        t.setPlaceholder("中文").setValue(s.translate.defaultTarget).onChange(async (v) => {
+      .setName(t("st.defaultTargetLang"))
+      .addText((tc) =>
+        tc.setPlaceholder(t("st.metadataLangPlaceholder")).setValue(s.translate.defaultTarget).onChange(async (v) => {
           s.translate.defaultTarget = v.trim() || "中文";
           await this.plugin.saveSettings();
         })
       );
 
     new Setting(containerEl)
-      .setName("常用目标语言")
-      .setDesc("翻译小框里可快速切换。支持换行或逗号分隔。")
+      .setName(t("st.commonTargetLangs"))
+      .setDesc(t("st.commonTargetLangsDesc"))
       .addTextArea((ta) => {
         ta.setValue((s.translate.targetLanguages ?? []).join("\n")).onChange(async (v) => {
           s.translate.targetLanguages = parseModelList(v);
@@ -972,19 +768,19 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
   // ---------- 对话 ----------
   private renderChat(): void {
-    const containerEl = this.createSection("对话", "控制工作台的上下文注入和对话保存位置。", "messages-square");
+    const containerEl = this.createSection(t("st.chatSection"), t("st.chatSectionDesc"), "messages-square");
     const s = this.plugin.settings;
 
     new Setting(containerEl)
-      .setName("对话保存文件夹")
-      .addText((t) =>
-        t.setPlaceholder("AI 对话").setValue(s.chat.saveFolder).onChange(async (v) => {
-          s.chat.saveFolder = v.trim() || "AI 对话";
+      .setName(t("st.chatSaveFolder"))
+      .addText((tc) =>
+        tc.setPlaceholder(t("st.chatSaveFolderPlaceholder")).setValue(s.chat.saveFolder).onChange(async (v) => {
+          s.chat.saveFolder = v.trim() || t("st.chatSaveFolderPlaceholder");
           await this.plugin.saveSettings();
         })
       );
     new Setting(containerEl)
-      .setName("默认注入当前笔记")
+      .setName(t("st.injectNoteDefault"))
       .addToggle((t) =>
         t.setValue(s.chat.injectCurrentNote).onChange(async (v) => {
           s.chat.injectCurrentNote = v;
@@ -992,7 +788,7 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("默认注入选中文本")
+      .setName(t("st.injectSelectionDefault"))
       .addToggle((t) =>
         t.setValue(s.chat.injectSelection).onChange(async (v) => {
           s.chat.injectSelection = v;
@@ -1000,8 +796,8 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("系统提示词")
-      .setDesc("控制 AI 的默认行为与语气")
+      .setName(t("st.systemPrompt"))
+      .setDesc(t("st.systemPromptDesc"))
       .addTextArea((ta) => {
         ta.setValue(s.chat.systemPrompt).onChange(async (v) => {
           s.chat.systemPrompt = v;
@@ -1014,11 +810,11 @@ export class AIOrganizerSettingTab extends PluginSettingTab {
 
   // ---------- 浏览位置记忆 ----------
   private renderScrollRestore(): void {
-    const containerEl = this.createSection("浏览位置记忆", "打开笔记时自动回到上次浏览的滚动位置。", "book-marked");
+    const containerEl = this.createSection(t("st.scrollSection"), t("st.scrollSectionDesc"), "book-marked");
     const s = this.plugin.settings;
     new Setting(containerEl)
-      .setName("记住并恢复浏览位置")
-      .setDesc("切换文档后重新打开，自动滚动到上次的位置并恢复光标行。")
+      .setName(t("st.scrollEnabled"))
+      .setDesc(t("st.scrollEnabledDesc"))
       .addToggle((t) =>
         t.setValue(s.scrollRestore.enabled).onChange(async (v) => {
           s.scrollRestore.enabled = v;

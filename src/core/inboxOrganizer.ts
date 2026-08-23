@@ -3,6 +3,7 @@ import type AIOrganizerPlugin from "../main";
 import type { InboxMoveSuggestion } from "../types";
 import { extractJson, truncate, uniquePath } from "../utils";
 import { notifyError } from "../utils/notify";
+import { tpl } from "../i18n";
 
 // ============================================================
 // 智能收件箱整理：一键将收件箱草稿按内容自动分类到对应文件夹
@@ -110,7 +111,7 @@ ${fullSummaries.join("\n\n")}
         await this.plugin.app.fileManager.renameFile(file, newPath);
         moved++;
       } catch (err: any) {
-        notifyError(`移动失败：${file.name} → ${err?.message || err}`, 6000);
+        notifyError(tpl("notify.moveFail", { name: file.name, msg: err?.message || err }), 6000);
       }
     }
     return { moved, kept };
