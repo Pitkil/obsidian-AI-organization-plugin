@@ -20,6 +20,16 @@
   <a href="#privacy-and-limits">Privacy</a>
 </p>
 
+<p>
+  <a href="https://obsidian.md/plugins?id=ai-organizer"><strong>Plugin Page</strong></a> ·
+  <a href="obsidian://show-plugin?id=ai-organizer">Open in Obsidian</a> ·
+  <a href="https://github.com/Pitkil/obsidian-AI-organization-plugin">GitHub</a> ·
+  <a href="https://github.com/Pitkil/obsidian-AI-organization-plugin/releases">Releases</a> ·
+  <a href="https://github.com/Pitkil/obsidian-AI-organization-plugin/issues">Issues</a> ·
+  <a href="obsidian://brat?plugin=Pitkil/obsidian-AI-organization-plugin">Install with BRAT</a> ·
+  <a href="https://github.com/Pitkil">Author</a>
+</p>
+
 <p><strong>English</strong> · <a href="README.zh-CN.md">简体中文</a></p>
 
 <img src="docs/screenshots/00-readme-hero.png" alt="AI Organizer for Obsidian" width="100%">
