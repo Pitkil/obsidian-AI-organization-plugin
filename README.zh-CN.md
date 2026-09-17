@@ -1,347 +1,283 @@
 <div align="center">
 
-# Obsidian AI Organizer
+# AI Organizer for Obsidian
 
-**面向 Obsidian 的一站式 AI 工作台** —— 上下文对话、选中文本处理、翻译、OCR 辅助图片理解、智能排版、附件整理、Zotero 式便签、元数据生成、收件箱自动归类、双链建议与批量处理，全部融入你的笔记流程。
+**真正理解笔记上下文的 AI 工作台：写作、阅读、图片理解与知识库整理，都在 Obsidian 内完成。**
 
 <p>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.1.2-0f766e">
-  <img alt="Obsidian" src="https://img.shields.io/badge/Obsidian-1.8%2B-6b7280">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-Vitest-22c55e">
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-111827">
+  <a href="https://obsidian.md/plugins?id=ai-organizer"><img alt="从 Obsidian 安装" src="https://img.shields.io/badge/Obsidian-安装_AI_Organizer-7c3aed?logo=obsidian&logoColor=white"></a>
+  <a href="https://github.com/Pitkil/obsidian-AI-organization-plugin/releases"><img alt="版本" src="https://img.shields.io/badge/release-0.1.3-0f766e"></a>
+  <img alt="Obsidian 版本" src="https://img.shields.io/badge/Obsidian-1.8%2B-59636e">
+  <a href="LICENSE"><img alt="MIT 许可证" src="https://img.shields.io/badge/license-MIT-111827"></a>
 </p>
 
 <p>
-  <a href="#功能特性">功能特性</a>
-  ·
-  <a href="#界面截图">界面截图</a>
-  ·
-  <a href="#安装方法">安装方法</a>
-  ·
-  <a href="#模型配置">模型配置</a>
-  ·
-  <a href="#使用说明">使用说明</a>
-  ·
-  <a href="#命令列表">命令列表</a>
+  <a href="#为什么选择-ai-organizer">核心优势</a> ·
+  <a href="#界面与交互">界面</a> ·
+  <a href="#安装">安装</a> ·
+  <a href="#配置">配置</a> ·
+  <a href="#功能参考">功能参考</a> ·
+  <a href="#隐私与限制">隐私</a>
 </p>
 
-<p>
-  <strong>🌐 语言</strong>：
-  <a href="README.md">English</a>
-  ·
-  <a href="README.zh-CN.md"><strong>中文</strong></a>
-</p>
+<p><a href="README.md">English</a> · <strong>简体中文</strong></p>
+
+<img src="docs/screenshots/00-readme-hero.png" alt="AI Organizer for Obsidian" width="100%">
 
 </div>
 
----
+AI Organizer 把 AI 放进笔记本身。你可以直接翻译或改写选中的段落，结合当前笔记及其中图片进行对话，把阅读想法保存为不污染 Markdown 正文的锚点便签，并通过排版、元数据、双链、收件箱、附件和批处理工具维护整个知识库。
 
-### 📦 仓库说明
+插件同时支持远程 API 与本地 OpenAI 兼容服务。文本模型和视觉模型独立配置；未配置视觉模型或调用失败时，还可以使用内置 OCR 提取图片中的可见文字。
 
-| | |
-| --- | --- |
-| **GitHub 仓库** | [Pitkil/obsidian-AI-organization-plugin](https://github.com/Pitkil/obsidian-AI-organization-plugin) |
-| **Obsidian 插件页** | <https://obsidian.md/plugins?id=ai-organizer> |
-| **Obsidian 社区插件** | `设置 → 第三方插件 → 浏览 → 搜索 "AI Organizer"` |
-| **通过 BRAT 安装** | `Obsidian://brat?plugin=Pitkil/obsidian-AI-organization-plugin` |
-| **发行版下载** | <https://github.com/Pitkil/obsidian-AI-organization-plugin/releases> |
-| **问题反馈** | <https://github.com/Pitkil/obsidian-AI-organization-plugin/issues> |
-| **作者** | [Wang Yilai](https://github.com/Pitkil) |
+## 为什么选择 AI Organizer
 
-> 📌 **还没上架官方市场？** 可以先用上方链接手动安装，或通过 [BRAT](https://github.com/TfTHacker/obsidian42-brat) 安装。详细步骤见 [安装方法](#安装方法)。
+| | 能力 | 实际价值 |
+| --- | --- | --- |
+| **写作** | 选中文本快捷操作 | 不离开编辑器即可翻译、解释、润色、扩写、总结、添加便签或继续询问。 |
+| **翻译** | 先审阅再应用 | 随时切换目标语言，可指定专用小模型；结果可复制、替换原文或保存为便签。 |
+| **思考** | 锚点便签 | 翻译、想法、疑问和待办保存在 Markdown 正文之外，同时在原文旁留下可定位的轻量标识。 |
+| **对话** | 真正的笔记上下文 | 可结合当前笔记、稳定选区、笔记内图片、粘贴/拖入图片与最近对话历史提问。 |
+| **看图** | 视觉模型 + OCR 兜底 | 视觉模型负责图片理解；不可用时由内置 OCR 提取文字，再交给文本模型处理。 |
+| **模型** | 多个独立模型配置 | 每个模型分别保存提供商、URL、Key、模型 ID、用途、上下文、温度和输出上限。 |
+| **定制** | Prompt 可配置 | 可修改对话系统 Prompt，也可创建、编辑并选用自己的排版 Prompt 模板。 |
+| **安全** | 预览式排版 | 应用前查看原文、结果和差异；空结果、异常截断或丢失图片引用时自动阻止写入。 |
+| **整理** | 知识库维护工具 | 整理图片、重写链接、归档孤儿附件、生成元数据、整理收件箱、推荐双链和批处理。 |
+| **专注** | 可收纳工作台 | 工作台可折叠；显示上下文与估算占用；只展示可用模型，并恢复历史对话与阅读位置。 |
+| **语言** | 中英双语界面 | 可在设置页随时切换中文与 English 界面。 |
 
----
+## 界面与交互
 
-<p align="center">
-  <img src="docs/screenshots/01-chat-workspace.png" alt="AI Organizer 对话工作台" width="100%">
-</p>
+### 上下文会跟着你的操作走
 
-AI Organizer 面向经常在长笔记和知识库中工作的人。它不把每项任务都塞进独立的聊天机器人，而是让你在 Obsidian 内直接处理选中文本、围绕当前笔记提问、解析图片、保留阅读批注、整理附件，无需切换工具。
-
-## 功能特性
-
-| 功能 | 说明 |
-| --- | --- |
-| 多模型 Profile | 可配置多个模型 Profile，每个独立设置提供商、Base URL、API Key、模型 ID、模型类型、上下文窗口、温度和最大 Token。 |
-| 文本 / 视觉模型分离 | 写作类任务使用文本模型；图片感知对话可单独指定视觉模型。 |
-| OpenAI 兼容接口 | 支持 OpenAI、DeepSeek、通义千问、智谱 GLM、Kimi、Ollama、LM Studio、vLLM 等兼容服务。 |
-| 选中文本工具栏 | 在编辑器中选中文字后，可翻译、解释、润色、扩写、总结、添加便签或放入对话上下文。 |
-| 翻译结果小窗 | 替换原文、复制结果或保存为便签前，先在小窗中审阅翻译。 |
-| Zotero 式便签 | 阅读笔记、想法、疑问和翻译便签作为插件批注保存，不直接写入 Markdown 正文，并在编辑器中保留轻量锚点。 |
-| 上下文对话侧边栏 | 结合当前笔记、选中文本、粘贴图片、笔记内图片与历史消息进行对话。 |
-| 上下文占用仪表 | 发送前估算当前模型上下文已使用比例。 |
-| 图片理解 | 通过已配置的视觉模型读取笔记或对话附件中的图片；视觉模型不可用时自动走 OCR 兜底。 |
-| 智能排版 | 长 Markdown 笔记排版前提供预览、差异视图与安全检查。 |
-| 图片整理 | 将引用的图片移动到指定目录，并自动重写 Wiki 链接与 Markdown 图片链接。 |
-| 元数据生成 | 为当前笔记生成 frontmatter 标签、摘要与别名。 |
-| 收件箱整理 | 移动文件前先审阅 AI 为收件箱笔记推荐的目标目录。 |
-| 双链建议 | 推荐相关笔记并写入"相关笔记"区块。 |
-| 批量处理 | 对多篇笔记批量执行排版、元数据或翻译，支持请求间隔控制。 |
-| 浏览位置记忆 | 重新打开笔记时自动回到上次的滚动位置。 |
-| 中英双语界面 | 设置页顶部可切换中文 / English 界面语言。 |
-
-## 界面截图
-
-### 对话工作台
-
-对话侧边栏能理解当前笔记、选中文本、图片附件与已配置的模型 Profile；工作台可收纳，让对话保持专注。
+侧边栏既可以读取整篇笔记，也可以固定当前选中的文字。插件会解析这个范围内引用的图片，通过当前视觉模型或 OCR 兜底进行分析，再把精简结果交给文本模型。输入框旁的圆环会根据当前模型设置的上下文窗口估算占用情况。
 
 <p align="center">
-  <img src="docs/screenshots/01-chat-workspace.png" alt="AI Organizer 对话工作台" width="100%">
+  <img src="docs/screenshots/02-context-chat-and-ocr.png" alt="结合选中文本与图片 OCR 的上下文对话" width="100%">
 </p>
 
-### 选中文本工具栏
+### 工作台需要时展开，不用时收起
 
-编辑器中选中文字后，工具栏浮现在文本附近，提供阅读与编辑场景下常用的操作。
+工作台集中放置笔记级操作，但不会一直挤占对话空间。只聊天时可以收起；需要排版、便签、元数据、双链、图片整理或收件箱时再展开。
 
 <p align="center">
-  <img src="docs/screenshots/02-selection-toolbar.png" alt="选中文本工具栏" width="88%">
+  <img src="docs/screenshots/03-collapsible-workbench.png" alt="可折叠对话工作台" width="42%"><br>
+  <sub>可折叠的笔记工作台</sub>
 </p>
 
-### 翻译结果小窗
-
-翻译结果在小型审阅面板中展示，可替换原文、复制结果，或把翻译与自己的想法保存为便签。
+在编辑器中选中文字，操作会直接出现在段落旁。目标语言可在工具栏中随时切换，其余常用操作保持一步可达。
 
 <p align="center">
-  <img src="docs/screenshots/04-translation-popover.png" alt="翻译结果小窗" width="88%">
+  <img src="docs/screenshots/04-selection-toolbar.png" alt="选中文本快捷工具栏" width="88%"><br>
+  <sub>翻译、解释、润色、扩写、总结、便签和询问</sub>
 </p>
 
-### 便签（批注）
+### 便签附着在原文，而不是插入正文
 
-便签由插件保存，而不是写进 Markdown 正文；支持编辑、删除、定位与导出。
+便签由插件单独保存，不会追加到 Markdown 正文。你可以记录自己的想法，也可以保存翻译结果，之后从标识处回到对应段落。便签支持编辑、删除、定位和导出。
 
 <p align="center">
-  <img src="docs/screenshots/07-annotation-panel.png" alt="便签面板" width="72%">
+  <img src="docs/screenshots/05-annotation-compose.png" alt="编写便签" width="48%"><br>
+  <sub>记录想法、疑问或待办</sub>
 </p>
-
-### 模型设置
-
-每个模型 Profile 独立配置，可定义文本模型与视觉模型，包括本地 OpenAI 兼容服务。
 
 <p align="center">
-  <img src="docs/screenshots/08-model-settings.png" alt="模型设置" width="80%">
+  <img src="docs/screenshots/06-annotation-anchor.png" alt="正文旁的便签锚点" width="76%"><br>
+  <sub>轻量锚点标记对应原文</sub>
 </p>
 
-### 图片上下文
+### 模型是独立配置，不是共用一套 Key
 
-当笔记或选中文本包含图片时，AI Organizer 会将其传给选中的视觉模型；若失败或未配置视觉模型，OCR 可提取图中文字供文本模型理解。
+每个模型都拥有自己的接口和密钥。你可以保存多个文本或视觉模型，分别指定当前文本模型和当前视觉模型，也可以让翻译走更快、更便宜的小文本模型。
 
 <p align="center">
-  <img src="docs/screenshots/10-image-context.png" alt="图片上下文" width="100%">
+  <img src="docs/screenshots/07-model-settings.png" alt="相互独立的文本与视觉模型配置" width="76%">
 </p>
 
-### 图片整理
+### 笔记中的图片也是上下文
 
-每次整理可选择目标文件夹，并决定是否为当前笔记重命名图片。
+可以把图片粘贴或拖入对话，也可以让插件读取当前笔记或选区引用的图片。单次请求的图片数量和文件大小均可配置；这不是对一篇文档图片总数的限制。
 
 <p align="center">
-  <img src="docs/screenshots/11-image-organize.png" alt="图片整理弹窗" width="70%">
+  <img src="docs/screenshots/08-note-image-context.png" alt="可供上下文对话读取的笔记图片" width="100%">
 </p>
 
-### 排版预览
+### 排版结果始终可以先审阅
 
-排版结果写入笔记前会先审阅。插件会拦截空内容、异常偏短或丢失图片引用的结果。
+排版采用非独占加载流程，模型完成后再打开专用审阅窗口。应用前可以查看原文、排版结果和差异，确认无误后再写回笔记。
 
 <p align="center">
-  <img src="docs/screenshots/09-format-preview.png" alt="排版预览" width="72%">
+  <img src="docs/screenshots/01-formatting-workflow.gif" alt="带预览与差异对比的排版流程" width="82%">
 </p>
 
-## 安装方法
+## 安装
 
-### 方式一：官方社区插件市场
+### Obsidian 社区插件
 
-1. 打开 Obsidian，进入 `设置 → 第三方插件`。
-2. 若开启"受限模式"，请先关闭。
-3. 点击 `浏览`，搜索 **AI Organizer**，点击 `安装`。
-4. 安装完成后点击 `启用`。
+1. 在 Obsidian 中打开 `设置 -> 第三方插件`。
+2. 点击 `浏览`，搜索 **AI Organizer**。
+3. 点击 `安装`，安装完成后点击 `启用`。
 
-上架后可直接访问：<https://obsidian.md/plugins?id=ai-organizer>
+也可以直接打开 [AI Organizer 插件页面](https://obsidian.md/plugins?id=ai-organizer)。
 
-### 方式二：通过 BRAT 安装（测试版）
+### 通过 BRAT 安装
 
-[BRAT](https://github.com/TfTHacker/obsidian42-brat) 可以直接从 GitHub 仓库安装插件。
+安装 [BRAT](https://github.com/TfTHacker/obsidian42-brat)，选择 `Add a beta plugin for testing`，然后输入：
 
-1. 先安装 [BRAT](https://github.com/TfTHacker/obsidian42-brat) 社区插件。
-2. 打开 BRAT 设置，选择 `Add a beta plugin for testing`。
-3. 输入仓库地址：`Pitkil/obsidian-AI-organization-plugin`
-4. 点击 `Add Plugin`，随后在插件列表启用 **AI Organizer**。
-
-也可以直接打开预填链接：`Obsidian://brat?plugin=Pitkil/obsidian-AI-organization-plugin`
-
-### 方式三：手动安装
-
-1. 从 [Releases](https://github.com/Pitkil/obsidian-AI-organization-plugin/releases) 页面下载最新的 `main.js`、`manifest.json` 和 `styles.css`（或从仓库根目录获取最新构建）。
-2. 在仓库中创建以下文件夹：
-
-   ```text
-   <your-vault>/.obsidian/plugins/ai-organizer/
-   ```
-
-3. 将以下文件复制到该文件夹：
-
-   ```text
-   manifest.json
-   main.js
-   styles.css
-   ```
-
-4. 打开 Obsidian，进入 `设置 → 第三方插件`，必要时关闭受限模式，然后启用 `AI Organizer`。
-
-### 从源码构建
-
-```bash
-npm install
-npm run build
+```text
+Pitkil/obsidian-AI-organization-plugin
 ```
 
-构建会在仓库根目录生成 `main.js`。Obsidian 加载插件需要 `main.js`、`manifest.json` 和 `styles.css`。
+### 手动安装
 
-### 开发
+从最新 [Release](https://github.com/Pitkil/obsidian-AI-organization-plugin/releases) 下载 `main.js`、`manifest.json` 和 `styles.css`，放入：
 
-```bash
-npm run dev
+```text
+<你的仓库>/.obsidian/plugins/ai-organizer/
 ```
 
-开发时建议搭配 Obsidian 的 Hot Reload 插件使用。
+重新加载 Obsidian，然后在第三方插件中启用 **AI Organizer**。
 
-## 模型配置
+## 配置
 
-AI Organizer 使用模型 Profile。每个 Profile 独立保存提供商、接口地址、凭据、模型 ID、模型类型、上下文窗口、温度与最大 Token。
+打开 `设置 -> AI Organizer`。使用对话及其他 AI 功能前，至少配置一个可用的文本模型。
 
-| 字段 | 含义 |
+### 模型配置
+
+| 设置 | 用途 |
 | --- | --- |
-| 名称 | 聊天输入框中显示的模型名。 |
-| 提供商 | OpenAI 兼容接口、Anthropic Claude 或 Google Gemini。 |
-| 模型类型 | 文本模型或视觉模型。 |
-| Base URL | API 接口地址。OpenAI 兼容 Profile 可指向本地或第三方服务。 |
-| API Key | 远程服务通常需要；本地 Ollama 或 LM Studio 可留空。 |
-| 模型 ID | 实际发送给 API 的模型名。 |
-| 上下文窗口 | 用于估算上下文占用仪表。 |
-| 温度与最大 Token | 控制随机性与最大输出长度。 |
+| 显示名称 | 对话输入框模型选择器中显示的名称。 |
+| 用途 | 将模型标记为文本模型或视觉模型。 |
+| 提供商 | OpenAI 兼容、Anthropic Claude 或 Google Gemini。 |
+| Base URL | 每个模型独立的接口地址，适合代理、Ollama、LM Studio、vLLM 和第三方兼容接口。 |
+| API Key | 每个模型独立保存；本机回环地址可以留空。 |
+| 模型 ID | 实际发送给提供商的模型名称。 |
+| 上下文窗口 | 用于计算对话中的上下文占用估算。 |
+| 温度 / 最大 Token | 控制生成随机性和输出长度。 |
 
-### 文本模型与视觉模型
+OpenAI 兼容配置可连接 OpenAI、DeepSeek、通义千问、智谱 GLM、Kimi、Ollama、LM Studio、vLLM 等提供兼容 Chat Completions API 的服务。插件也提供 Anthropic Claude 与 Google Gemini 的独立适配。
 
-- 文本模型负责对话、翻译、解释、润色、排版、总结、元数据与双链建议。
-- 视觉模型负责图片感知问答、截图、图表与文档图片。
-- 若配置了多个视觉模型，AI Organizer 使用当前选中的默认视觉模型。
-- 若没有可用的视觉模型或视觉请求失败，OCR 会提取图片文字交给文本模型。
+### 文本模型、视觉模型与 OCR
 
-### OCR 兜底
+- 当前**文本模型**负责对话、写作、翻译、排版、元数据、收件箱分类和双链建议。
+- 当前**视觉模型**负责笔记图片和对话附件。一次请求只使用当前选中的视觉模型。
+- 设置页可快速新增 Ollama 或 LM Studio 的本地视觉模型配置；插件本身不打包视觉模型权重。
+- 未配置视觉模型或视觉请求失败时，内置 `tesseract.js` 流程可提取图片中的可见文字，再交给文本模型。
+- OCR 只是文字提取兜底，不等于视觉推理。公式、布局、图表和照片更适合使用真正的视觉模型。
 
-AI Organizer 内置 `tesseract.js` 作为本地 OCR 兜底。OCR 对截图、扫描件和文字密集的图表很有用，但它不是完整的视觉语言模型。对于截图、版式、照片或视觉推理类任务，请尽量配置真正的视觉模型。
+### 自定义 Prompt
 
-## 使用说明
+AI Organizer 提供两层实用的 Prompt 配置：
 
-### 选中文本操作
+1. **对话系统 Prompt**：控制助手默认角色、语言、语气和回答方式。
+2. **排版 Prompt 模板**：可以新建、编辑、删除具名模板，并把它选为默认排版模式。
 
-在编辑器中选中文字，即可打开浮动工具栏。
+同时保留全面排版、Markdown 语法、标题结构和中英混排/标点等内置模式。
 
-| 操作 | 结果 |
+### 翻译
+
+可以设置默认目标语言、自定义常用语言列表，并选择专用的快速或低成本文本模型。没有指定翻译模型时，会自动回退到当前文本模型。
+
+## 功能参考
+
+### 选中文本
+
+| 操作 | 行为 |
 | --- | --- |
-| 翻译 | 打开翻译小窗，支持语言切换、复制、替换与保存为便签。 |
-| 解释 | 解释选中文本。 |
-| 润色 | 在保留原意的基础上优化表达。 |
-| 扩写 | 为选中文本补充细节。 |
-| 总结 | 把选中文本压缩为要点。 |
-| 便签 | 把想法、疑问或待办保存为便签。 |
-| 询问 | 把选中文本放入对话上下文。 |
+| 翻译 | 打开结果小窗，可切换语言、复制、替换原文或保存为便签。 |
+| 解释 | 在保留原文的前提下解释选中内容。 |
+| 润色 | 保留原意并优化表达。 |
+| 扩写 | 为选中内容补充有用细节。 |
+| 总结 | 把选中内容压缩为重点。 |
+| 便签 | 把自己的想法、疑问或待办保存为锚点便签。 |
+| 询问 | 将选中内容放入对话上下文，继续追问。 |
 
-AI 替换文本后，修改范围会短暂高亮并显示撤回按钮；Obsidian 自带的撤销同样有效。
+文本修改应用后会短暂高亮，并显示撤回操作；Obsidian 自带撤销历史仍然有效。
 
-### 对话工作流
+### 对话与上下文
 
-- 以当前笔记与选中文本作为上下文。
-- 支持粘贴或拖入图片附件。
-- 自动识别当前笔记或选中文本引用的图片。
-- 输入区显示当前上下文来源。
-- 输入区角落显示上下文占用仪表。
-- 仅列出已配置且可用的模型。
-- 重新打开侧边栏时恢复最近的对话历史。
-- 可将对话保存为 Markdown 笔记。
+- 当前笔记和选中文本可独立开关。
+- 支持向输入框粘贴或拖入图片。
+- 模型回复支持流式显示和停止生成。
+- 输入框下方只显示已配置且可用的文本模型。
+- 根据笔记/选区、历史、当前输入、图片和模型上下文窗口估算占用。
+- 关闭后重新打开侧边栏，可恢复最近对话历史。
+- 支持把对话保存为 Markdown，也可以清空当前历史。
+- 工作台可折叠，避免占用对话空间。
 
-### 图片整理
+### 排版与知识库整理
 
-图片整理器会扫描当前笔记引用的图片，本次运行前询问目标文件夹，可选重命名，移动后自动重写 `![[image.png]]` 与 `![alt](image.png)` 链接。
+| 工具 | 功能 |
+| --- | --- |
+| 排版 | 使用内置模式或自定义 Prompt，并在应用前查看原文、结果和差异。 |
+| 图片整理 | 将引用图片移动到本次选择的文件夹，可选重命名，并重写 Wiki/Markdown 图片链接。 |
+| 孤儿附件 | 把未引用附件移动到归档文件夹，不直接删除。 |
+| 元数据 | 按配置生成 frontmatter 标签、摘要和别名。 |
+| 收件箱 | 文件移动前审阅 AI 推荐的目标目录，可允许创建新目录。 |
+| 双链建议 | 审阅相关笔记候选项，并把接受的链接写入笔记。 |
+| 批量处理 | 对选中的多篇笔记执行排版、元数据或翻译，可配置请求间隔。 |
+| 浏览位置 | 重新打开笔记时恢复上次滚动位置与光标行。 |
 
-未引用的附件会被移动到 `未引用附件` 文件夹，而不是删除。
-
-### 排版
-
-排版以预览为先。应用前可对比原文、排版结果与差异。若模型返回空内容、过度截断或丢失图片引用，AI Organizer 会拒绝应用。
-
-## 命令列表
+### 命令
 
 | 命令 | 说明 |
 | --- | --- |
-| 打开 AI 对话面板 | 打开或聚焦 AI 对话侧边栏。 |
-| 关闭 AI 对话侧边栏 | 关闭 AI Organizer 对话视图。 |
-| 打开 AI Organizer 设置 | 打开插件设置。 |
-| 恢复上次浏览位置 | 回到当前笔记上次记录的滚动位置。 |
-| AI 排版当前笔记 | 排版当前笔记并打开预览。 |
-| 整理当前笔记图片 | 移动引用的图片并重写链接。 |
-| 扫描未引用附件 | 查找未使用的附件并移动到归档目录。 |
-| 生成标签、摘要和别名 | 生成 frontmatter 元数据。 |
-| 智能整理收件箱 | 审阅并应用 AI 为收件箱笔记推荐的目标目录。 |
-| 推荐相关笔记 | 推荐相关笔记并插入链接。 |
-| 批量 AI 处理 | 对选中的笔记批量执行排版、元数据或翻译。 |
-| 翻译选中文本 | 翻译当前编辑器选区。 |
-| 编辑选中文本 | 润色、扩写、续写或压缩选中文本。 |
-| 导出当前笔记便签 | 把当前笔记的便签导出为 Markdown。 |
+| 打开 AI 对话面板 | 打开或聚焦侧边栏。 |
+| 关闭 AI 对话侧边栏 | 关闭 AI Organizer 视图。 |
+| 打开 AI Organizer 设置 | 进入插件设置页。 |
+| 回到上次浏览位置 | 返回当前笔记记录的位置。 |
+| AI 排版当前笔记 | 执行排版并打开审阅预览。 |
+| 一键整理当前笔记的图片 | 移动图片并重写引用。 |
+| 扫描未引用附件 | 查找并归档未使用附件。 |
+| AI 生成标签/摘要/别名 | 生成 frontmatter 元数据。 |
+| 智能整理收件箱 | 审阅并应用收件箱目录建议。 |
+| AI 推荐相关笔记（双链） | 审阅并插入相关笔记链接。 |
+| 批量 AI 处理 | 处理多篇已选笔记。 |
+| AI 翻译选中文本 | 对当前选区打开翻译流程。 |
+| AI 编辑选中文本 | 润色、扩写、续写或压缩当前选区。 |
+| 导出当前笔记的便签为笔记 | 将当前笔记便签导出为 Markdown。 |
 
-## 隐私说明
+## 隐私与限制
 
-AI Organizer 只在你主动触发操作时读取当前笔记、选中文本、引用的图片以及必要的仓库文件路径。发送给远程模型提供商的内容取决于所选提供商与操作类型。若使用 Ollama 或 LM Studio 等本地服务，处理可停留在本机或本地网络。
-
-收件箱整理、双链建议、批量处理与未引用附件扫描等功能可能需要枚举笔记或附件。当你显式复制生成结果时，插件也可能写入剪贴板。
-
-## 限制说明
-
-- 长笔记上下文会被截断，以保证请求可控。
-- 图片上下文有可配置的单次上限，这并不代表一篇文档只能包含这么多图片。
-- 图片感知请求只使用当前选中的默认视觉模型。
-- OCR 只提取可见文字，不理解非文字视觉内容。
-- 本地 OpenAI 兼容接口可省略 API Key，但远程服务通常需要。
-- 便签数据保存在插件数据中，多设备使用请同步插件数据。
-- AI 生成的排版与修改在应用到重要笔记前请先审阅。
+- AI 操作只在你主动触发时执行。根据功能不同，插件可能读取当前笔记、选区、引用图片、候选笔记标题或附件路径。
+- 发送到远程提供商的内容受对方服务条款约束。使用 Ollama、LM Studio 等本地端点时，模型请求可以保留在本机或局域网。
+- API Key 保存在 Obsidian 插件数据中，AI Organizer 不会额外加密；请妥善保护和同步该数据。
+- OCR 使用 `tesseract.js`。本地识别运行前，OCR 运行时可能需要获取并缓存对应语言数据。
+- 长笔记内容会在请求前截断。单次图片数量和大小可配置为 1–200 张、每张 1–50 MB，默认 20 张和 5 MB。
+- 上下文圆环是估算值，不是提供商账单或精确 Token 统计；它依据配置的上下文窗口和近似 Token 数计算。
+- 便签保存在插件数据中；多设备使用时需要同步插件数据才能同步便签。
+- 对重要知识库应用生成的修改、元数据、双链和文件移动建议前，请先审阅。
 
 ## 开发
 
 ```bash
 npm install
+npm run dev
 npm run build
 npm test
 ```
 
 | 脚本 | 说明 |
 | --- | --- |
-| `npm run dev` | 监听源文件并重新构建。 |
-| `npm run build` | 运行 TypeScript 检查并用 esbuild 打包。 |
+| `npm run dev` | 监听源码并持续构建。 |
+| `npm run build` | 类型检查并打包生成 `main.js`。 |
 | `npm test` | 运行 Vitest 测试。 |
 | `npm run test:watch` | 以监听模式运行测试。 |
 
-## 项目结构
-
 ```text
 src/
-├── main.ts                  # 插件入口、命令、编辑器交互
-├── settings.ts              # 设置结构、默认值、归一化
-├── types.ts                 # 共享类型
-├── i18n.ts                  # 中英双语文案与切换
-├── providers/               # OpenAI 兼容、Claude、Gemini、HTTP 助手
-├── core/                    # 对话、排版、OCR、图片、元数据、收件箱、双链
-├── ui/                      # 对话视图、设置、弹窗、预览
-└── utils/                   # Markdown、路径、通知、锚点
-
-test/                        # Vitest 测试
+├── main.ts          插件生命周期、命令与编辑器交互
+├── settings.ts      持久化设置、默认值与迁移
+├── providers/       OpenAI 兼容、Claude、Gemini
+├── core/            对话、排版、OCR、图片、元数据、收件箱、双链
+├── ui/              侧边栏、设置与各类审阅弹窗
+└── utils/           位置、Markdown 与通知工具
 ```
+
+## 参与贡献
+
+欢迎提交 Issue 与范围清晰的 Pull Request。请说明修改影响的用户流程，避免混入无关重构，并在提交前运行 `npm run build` 与 `npm test`。
 
 ## 许可证
 
-MIT License。详见 [LICENSE](LICENSE)。
-
----
-
-## English
-
-Full English documentation is available in **[README.md](README.md)**.
+[MIT](LICENSE) © [Wang Yilai](https://github.com/Pitkil)

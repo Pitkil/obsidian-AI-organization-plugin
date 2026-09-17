@@ -4626,6 +4626,10 @@ var ChatView = class extends import_obsidian7.ItemView {
       this.useSelectionContext(liveSelection, activeFile2 instanceof import_obsidian7.TFile ? activeFile2.path : void 0, false);
       return liveSelection;
     }
+    if (this.noteHasCollapsedSelection() && this.hasStoredSelectionContext()) {
+      this.fallbackToCurrentNote();
+      return "";
+    }
     const pluginSnapshot = this.plugin.getSelectionSnapshot();
     if (pluginSnapshot == null ? void 0 : pluginSnapshot.text) {
       this.useSelectionContext(pluginSnapshot.text, pluginSnapshot.filePath, false);
@@ -4635,7 +4639,33 @@ var ChatView = class extends import_obsidian7.ItemView {
     if (this.selectionSnapshotText && (!this.selectionSnapshotFilePath || (activeFile == null ? void 0 : activeFile.path) === this.selectionSnapshotFilePath)) {
       return this.selectionSnapshotText;
     }
+    if (this.selectionSnapshotText) {
+      this.fallbackToCurrentNote();
+    }
     return "";
+  }
+  noteHasCollapsedSelection() {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && !!active.closest(".cm-editor, .markdown-source-view")) {
+      return true;
+    }
+    const selection = window.getSelection();
+    const markdownView = this.app.workspace.getActiveViewOfType(import_obsidian7.MarkdownView);
+    return !!((selection == null ? void 0 : selection.isCollapsed) && selection.anchorNode && (markdownView == null ? void 0 : markdownView.contentEl.contains(selection.anchorNode)));
+  }
+  hasStoredSelectionContext() {
+    return !!this.selectionSnapshotText || !!this.plugin.getSelectionSnapshot();
+  }
+  fallbackToCurrentNote() {
+    this.selectionSnapshotText = "";
+    this.selectionSnapshotFilePath = "";
+    this.plugin.clearSelectionSnapshot();
+    this.setToggleState(this.selToggle, false);
+    const activeFile = this.app.workspace.getActiveFile();
+    this.setToggleState(
+      this.noteToggle,
+      activeFile instanceof import_obsidian7.TFile && activeFile.extension === "md"
+    );
   }
   useSelectionContext(text, filePath, refresh = true) {
     this.selectionSnapshotText = text.trim();
@@ -4648,10 +4678,7 @@ var ChatView = class extends import_obsidian7.ItemView {
       this.refreshInputContext();
   }
   clearSelectionContext() {
-    this.selectionSnapshotText = "";
-    this.selectionSnapshotFilePath = "";
-    this.plugin.clearSelectionSnapshot();
-    this.setToggleState(this.selToggle, false);
+    this.fallbackToCurrentNote();
     this.refreshInputContext();
     this.inputEl.focus();
   }
@@ -6668,6 +6695,7 @@ var AIOrganizerPlugin = class extends import_obsidian16.Plugin {
     });
     this.registerEvent(
       this.app.workspace.on("file-open", () => {
+        this.selectionSnapshot = null;
         this.hideSelectionToolbar();
         this.hideTranslationPopup();
         this.hideEditUndoPill();
@@ -6701,6 +6729,8 @@ var AIOrganizerPlugin = class extends import_obsidian16.Plugin {
     }
     const snapshot = this.readActiveSelectionSnapshot(mdView);
     if (!snapshot) {
+      if (activeInEditor)
+        this.selectionSnapshot = null;
       this.hideSelectionToolbar();
       return;
     }

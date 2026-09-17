@@ -401,6 +401,7 @@ export default class AIOrganizerPlugin extends Plugin {
     });
     this.registerEvent(
       this.app.workspace.on("file-open", () => {
+        this.selectionSnapshot = null;
         this.hideSelectionToolbar();
         this.hideTranslationPopup();
         this.hideEditUndoPill();
@@ -440,6 +441,9 @@ export default class AIOrganizerPlugin extends Plugin {
 
     const snapshot = this.readActiveSelectionSnapshot(mdView);
     if (!snapshot) {
+      // A collapsed selection inside the editor means the user intentionally
+      // left the previous selection. Do not keep reusing that stale snapshot.
+      if (activeInEditor) this.selectionSnapshot = null;
       this.hideSelectionToolbar();
       return;
     }

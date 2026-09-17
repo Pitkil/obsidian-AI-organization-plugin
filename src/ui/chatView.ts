@@ -690,6 +690,13 @@ export class ChatView extends ItemView {
       return liveSelection;
     }
 
+    // Preserve the snapshot while focus moves to chat, but when the caret is
+    // back in the editor with no selection, treat the old selection as ended.
+    if (this.noteHasCollapsedSelection() && this.hasStoredSelectionContext()) {
+      this.fallbackToCurrentNote();
+      return "";
+    }
+
     const pluginSnapshot = this.plugin.getSelectionSnapshot();
     if (pluginSnapshot?.text) {
       this.useSelectionContext(pluginSnapshot.text, pluginSnapshot.filePath, false);
@@ -700,7 +707,40 @@ export class ChatView extends ItemView {
     if (this.selectionSnapshotText && (!this.selectionSnapshotFilePath || activeFile?.path === this.selectionSnapshotFilePath)) {
       return this.selectionSnapshotText;
     }
+    if (this.selectionSnapshotText) {
+      this.fallbackToCurrentNote();
+    }
     return "";
+  }
+
+  private noteHasCollapsedSelection(): boolean {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && !!active.closest(".cm-editor, .markdown-source-view")) {
+      return true;
+    }
+    const selection = window.getSelection();
+    const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    return !!(
+      selection?.isCollapsed &&
+      selection.anchorNode &&
+      markdownView?.contentEl.contains(selection.anchorNode)
+    );
+  }
+
+  private hasStoredSelectionContext(): boolean {
+    return !!this.selectionSnapshotText || !!this.plugin.getSelectionSnapshot();
+  }
+
+  private fallbackToCurrentNote(): void {
+    this.selectionSnapshotText = "";
+    this.selectionSnapshotFilePath = "";
+    this.plugin.clearSelectionSnapshot();
+    this.setToggleState(this.selToggle, false);
+    const activeFile = this.app.workspace.getActiveFile();
+    this.setToggleState(
+      this.noteToggle,
+      activeFile instanceof TFile && activeFile.extension === "md"
+    );
   }
 
   private useSelectionContext(text: string, filePath?: string, refresh = true): void {
@@ -714,10 +754,7 @@ export class ChatView extends ItemView {
   }
 
   private clearSelectionContext(): void {
-    this.selectionSnapshotText = "";
-    this.selectionSnapshotFilePath = "";
-    this.plugin.clearSelectionSnapshot();
-    this.setToggleState(this.selToggle, false);
+    this.fallbackToCurrentNote();
     this.refreshInputContext();
     this.inputEl.focus();
   }
